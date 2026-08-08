@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tune Your Companion 💖 - donotbesolo 💖</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="js/connection.js"></script>
+  <style>
+    .pref-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    .pref-card {
+      width: 100%;
+      max-width: 600px;
+      position: relative;
+    }
+    .pref-title {
+      font-size: 32px;
+      color: var(--accent-pink);
+      text-shadow: var(--pink-glow-shadow);
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .pref-subtitle {
+      font-size: 15px;
+      color: var(--text-muted);
+      text-align: center;
+      margin-bottom: 35px;
+      line-height: 1.5;
+    }
+    .section-title {
+      font-family: var(--font-body);
+      font-size: 16px;
+      color: var(--rose-gold);
+      margin-bottom: 12px;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+    .vibes-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 30px;
+    }
+    .vibe-chip {
+      background: rgba(13, 7, 20, 0.7);
+      border: 1px solid rgba(138, 43, 226, 0.4);
+      color: var(--text-muted);
+      padding: 10px 18px;
+      border-radius: 30px;
+      font-family: var(--font-body);
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .vibe-chip:hover {
+      border-color: var(--accent-pink);
+      color: var(--text-main);
+    }
+    .vibe-chip.selected {
+      border-color: var(--accent-pink);
+      background: rgba(255, 42, 117, 0.15);
+      color: var(--accent-pink);
+      box-shadow: var(--pink-glow-shadow);
+      text-shadow: 0 0 4px rgba(255, 42, 117, 0.3);
+    }
+    .lang-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 15px;
+      margin-bottom: 40px;
+    }
+    .lang-option {
+      background: rgba(13, 7, 20, 0.6);
+      border: 1px solid rgba(138, 43, 226, 0.3);
+      padding: 14px;
+      border-radius: 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-family: var(--font-body);
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .lang-option.selected {
+      border-color: var(--accent-pink);
+      color: var(--accent-pink);
+      background: rgba(255, 42, 117, 0.05);
+      box-shadow: var(--pink-glow-shadow);
+    }
+    .bubble-1 { top: 5%; left: 5%; }
+    .bubble-2 { bottom: 5%; right: 5%; }
+  </style>
+  <script>
+    const COMPANION_LANGUAGES = {
+      Aria: ["English", "Hinglish", "Hindi"],
+      Sakura: ["English", "Japanese"],
+      Yasmin: ["English", "French"],
+      Reyansh: ["English", "Hinglish", "Hindi"],
+      Leo: ["English", "Spanish"],
+      Priyanka: ["English", "Hinglish", "Hindi"],
+      Yuki: ["English", "Japanese"],
+      Aisha: ["English", "Urdu", "Hinglish"],
+      Chloe: ["English", "French"],
+      Sameer: ["English", "Urdu", "Hinglish"],
+      Aarav: ["English", "Hinglish", "Hindi"],
+      Zara: ["English", "Hinglish", "Hindi"],
+      Fatima: ["English", "Urdu", "Hinglish"],
+      Yusuf: ["English", "German"],
+      Kaelen: ["English", "Spanish"],
+      Ananya: ["English", "Hinglish", "Hindi"],
+      Mei: ["English", "Japanese"],
+      Ishaan: ["English", "Hinglish", "Hindi"],
+      Noah: ["English", "German"],
+      Kiara: ["English", "Hinglish", "Hindi"],
+      Mia: ["English", "Spanish"],
+      Rohan: ["English", "Hinglish", "Hindi"],
+      Hiroshi: ["English", "Japanese"],
+      Elena: ["English", "German"],
+      Rin: ["English", "Japanese"],
+      Kabir: ["English", "Hinglish", "Hindi"],
+      Kaito: ["English", "Japanese"],
+      Sayuri: ["English", "Japanese"],
+      Airi: ["English", "Japanese"],
+      Ren: ["English", "Japanese"],
+      Sora: ["English", "Japanese"],
+      Diya: ["English", "Hinglish", "Hindi"],
+      Sophie: ["English", "French"],
+      Dev: ["English", "Hinglish", "Hindi"],
+      Julian: ["English", "French"]
+    };
+
+    function getCompanionName() {
+      const activeCompStr = localStorage.getItem("activeCompanion");
+      let companionName = "Aria";
+      if (activeCompStr) {
+        try {
+          companionName = JSON.parse(activeCompStr).name;
+        } catch (e) {
+          companionName = "Aria";
+        }
+      }
+      return companionName;
+    }
+
+    // Validate session
+    document.addEventListener("DOMContentLoaded", () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        localStorage.setItem("redirectAfterLogin", "/preferences.html");
+        window.location.href = "/login.html?message=auth";
+        return;
+      }
+
+      // Pre-fill selections if user previously set preferences
+      const activeCompStr = localStorage.getItem("activeCompanion");
+      if (activeCompStr) {
+        const activeComp = JSON.parse(activeCompStr);
+        document.getElementById('previewAvatar').textContent = activeComp.avatar;
+        document.getElementById('previewName').textContent = activeComp.name;
+        document.getElementById('previewOrigin').textContent = activeComp.origin;
+        document.getElementById('companionPreviewCard').style.display = 'flex';
+      } else {
+        // Default preview
+        document.getElementById('previewAvatar').textContent = "👩‍🦰";
+        document.getElementById('previewName').textContent = "Aria";
+        document.getElementById('previewOrigin').textContent = "Bollywood Vibe";
+        document.getElementById('companionPreviewCard').style.display = 'flex';
+      }
+
+      const savedVibe = localStorage.getItem("activeVibe") || localStorage.getItem("companionVibe") || "Flirty";
+      const savedLang = localStorage.getItem("activeLanguage") || localStorage.getItem("companionLanguage") || "Hinglish";
+
+      if (savedVibe) selectVibe(savedVibe);
+      if (savedLang) selectLanguage(savedLang);
+
+      // Create heart particles
+      const particleContainer = document.getElementById('heartParticles');
+      const hearts = ['💖', '❤️', '💕', '✨', '🌸'];
+      for (let i = 0; i < 15; i++) {
+        const span = document.createElement('span');
+        span.className = 'heart-particle';
+        span.textContent = hearts[Math.floor(Math.random() * hearts.length)];
+        span.style.left = Math.random() * 100 + 'vw';
+        span.style.animationDelay = Math.random() * 6 + 's';
+        span.style.fontSize = (Math.random() * 12 + 12) + 'px';
+        particleContainer.appendChild(span);
+      }
+
+      validateCompanionLanguage();
+    });
+
+    let selectedVibe = 'Flirty';
+    let selectedLanguage = 'Hinglish';
+
+    function selectVibe(vibe) {
+      selectedVibe = vibe;
+      document.querySelectorAll('.vibe-chip').forEach(c => c.classList.remove('selected'));
+      
+      const vibeChips = document.querySelectorAll('.vibe-chip');
+      for (const chip of vibeChips) {
+        // Strip emojis to compare clean text
+        const chipText = chip.textContent.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD00-\uDFFF]/g, "").trim();
+        if (chipText.toLowerCase() === vibe.toLowerCase()) {
+          chip.classList.add('selected');
+          break;
+        }
+      }
+    }
+
+    function selectLanguage(lang) {
+      selectedLanguage = lang;
+      document.querySelectorAll('.lang-option').forEach(l => l.classList.remove('selected'));
+      const targetEl = document.getElementById('lang' + lang);
+      if (targetEl) {
+        targetEl.classList.add('selected');
+      }
+      validateCompanionLanguage();
+    }
+
+    function validateCompanionLanguage() {
+      const companionName = getCompanionName();
+      const supported = COMPANION_LANGUAGES[companionName] || ["English"];
+      const errorEl = document.getElementById('prefError');
+      const submitBtn = document.querySelector('.btn-cyber');
+      
+      if (!supported.includes(selectedLanguage)) {
+        errorEl.style.display = 'block';
+        errorEl.textContent = `${companionName} does not speak ${selectedLanguage}. Select a different companion for that language.`;
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = 0.5;
+        submitBtn.style.cursor = 'not-allowed';
+      } else {
+        errorEl.style.display = 'none';
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = 1.0;
+        submitBtn.style.cursor = 'pointer';
+      }
+    }
+
+    function savePreferences() {
+      const companionName = getCompanionName();
+      const token = localStorage.getItem("token");
+      fetch('/api/preferences/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          companion: companionName,
+          vibe: selectedVibe,
+          language: selectedLanguage
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          localStorage.setItem("activeVibe", selectedVibe);
+          localStorage.setItem("activeLanguage", selectedLanguage);
+          localStorage.setItem("companionVibe", selectedVibe);
+          localStorage.setItem("companionLanguage", selectedLanguage);
+          localStorage.setItem("companionPreference", "saved");
+          
+          window.location.href = "/chat.html";
+        } else {
+          alert(data.error || 'Failed to update preferences on server.');
+        }
+      })
+      .catch(err => {
+        console.error('[Save Preferences Error]:', err);
+        alert('Failed to connect to preference server. Please try again.');
+      });
+    }
+  </script>
+</head>
+<body>
+  <div class="glow-bubble bubble-1"></div>
+  <div class="glow-bubble glow-bubble-pink bubble-2"></div>
+  <div class="heart-particles" id="heartParticles"></div>
+
+  <div class="pref-container">
+    <div class="glass-panel pref-card">
+      <h2 class="pref-title">Tune Your Perfect Match 💖</h2>
+      <p class="pref-subtitle">Customize your companion's vibe and language details below.</p>
+
+      <!-- Active Companion Preview Card -->
+      <div id="companionPreviewCard" class="glass-panel" style="display: none; padding: 18px; margin-bottom: 30px; border: 1px solid rgba(255, 42, 117, 0.4); background: rgba(255, 42, 117, 0.05); border-radius: 16px; align-items: center; justify-content: center; gap: 12px; font-weight: 600; font-size: 16px; width: 100%;">
+        Currently Customizing: <span id="previewAvatar" style="font-size: 24px;"></span> <span id="previewName" style="color: var(--accent-pink);"></span> (<span id="previewOrigin" style="color: var(--rose-gold);"></span>)
+      </div>
+
+      <!-- PERSONALITY VIBE -->
+      <div class="section-title">Select Conversation Vibe</div>
+      <div class="vibes-container">
+        <div class="vibe-chip selected" onclick="selectVibe('Flirty')">Flirty 😘</div>
+        <div class="vibe-chip" onclick="selectVibe('Caring')">Caring 🤗</div>
+        <div class="vibe-chip" onclick="selectVibe('Dominant')">Dominant 🔥</div>
+        <div class="vibe-chip" onclick="selectVibe('Soft')">Soft 🌸</div>
+        <div class="vibe-chip" onclick="selectVibe('Gym')">Gym 🏋️‍♂️</div>
+        <div class="vibe-chip" onclick="selectVibe('Mysterious')">Mysterious 🌙</div>
+        <div class="vibe-chip" onclick="selectVibe('Anime')">Anime ⚡</div>
+        <div class="vibe-chip" onclick="selectVibe('Poetic')">Poetic ☕</div>
+      </div>
+
+      <!-- LANGUAGE PREFERENCE -->
+      <div class="section-title">Chat Language</div>
+      <div class="lang-row">
+        <div id="langHinglish" class="lang-option selected" onclick="selectLanguage('Hinglish')">Hinglish 🇮🇳</div>
+        <div id="langEnglish" class="lang-option" onclick="selectLanguage('English')">English 🇬🇧</div>
+        <div id="langHindi" class="lang-option" onclick="selectLanguage('Hindi')">Hindi 🇮🇳</div>
+        <div id="langUrdu" class="lang-option" onclick="selectLanguage('Urdu')">Urdu 🇵🇰</div>
+        <div id="langSpanish" class="lang-option" onclick="selectLanguage('Spanish')">Spanish 🇪🇸</div>
+        <div id="langFrench" class="lang-option" onclick="selectLanguage('French')">French 🇫🇷</div>
+        <div id="langJapanese" class="lang-option" onclick="selectLanguage('Japanese')">Japanese 🇯🇵</div>
+        <div id="langGerman" class="lang-option" onclick="selectLanguage('German')">German 🇩🇪</div>
+      </div>
+
+      <!-- ERROR MESSAGE CONTAINER -->
+      <div id="prefError" class="error-msg" style="display: none; margin-bottom: 15px; padding: 10px; border-radius: 8px; font-size: 13px; text-align: center; border: 1px solid rgba(255, 74, 74, 0.3); background: rgba(255, 74, 74, 0.1); color: #ff4a4a; font-family: var(--font-body);"></div>
+
+      <!-- SUBMIT BUTTON -->
+      <button onclick="savePreferences()" class="btn-cyber">Save & Resume Chat ❤️</button>
+    </div>
+  </div>
+</body>
+</html>

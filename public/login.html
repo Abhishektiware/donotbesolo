@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In / Sign Up 💖 - donotbesolo 💖</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="js/connection.js"></script>
+  <style>
+    .auth-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .auth-card {
+      width: 100%;
+      max-width: 450px;
+      position: relative;
+    }
+    .auth-tabs {
+      display: flex;
+      margin-bottom: 30px;
+      border-bottom: 2px solid rgba(255, 42, 117, 0.2);
+    }
+    .tab {
+      flex: 1;
+      padding: 12px;
+      text-align: center;
+      font-family: var(--font-body);
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text-dim);
+      border-bottom: 2px solid transparent;
+      transition: all 0.3s ease;
+    }
+    .tab.active {
+      color: var(--accent-pink);
+      border-color: var(--accent-pink);
+      text-shadow: var(--pink-glow-shadow);
+    }
+    .auth-form {
+      display: none;
+    }
+    .auth-form.active {
+      display: block;
+    }
+    .forgot-link {
+      display: block;
+      text-align: right;
+      font-size: 13px;
+      margin-top: -10px;
+      margin-bottom: 20px;
+    }
+    .error-msg {
+      color: #ff4a4a;
+      background: rgba(255, 74, 74, 0.1);
+      border: 1px solid rgba(255, 74, 74, 0.3);
+      padding: 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .success-msg {
+      color: var(--rose-gold);
+      background: rgba(255, 77, 166, 0.15);
+      border: 1px solid rgba(255, 77, 166, 0.3);
+      padding: 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .bubble-1 { top: 10%; right: 15%; }
+    .bubble-2 { bottom: 10%; left: 15%; }
+  </style>
+</head>
+<body>
+  <div class="glow-bubble glow-bubble-pink bubble-1"></div>
+  <div class="glow-bubble bubble-2"></div>
+  <div class="heart-particles" id="heartParticles"></div>
+
+  <div class="auth-container">
+    <div class="glass-panel auth-card">
+      <div class="auth-tabs">
+        <div class="tab active" onclick="switchTab('login')">Sign In</div>
+        <div class="tab" onclick="switchTab('signup')">Create Account</div>
+      </div>
+
+      <!-- STATUS LOGS -->
+      <div id="errorBox" class="error-msg"></div>
+      <div id="successBox" class="success-msg"></div>
+
+      <!-- LOGIN FORM -->
+      <form id="loginForm" class="auth-form active" onsubmit="handleLogin(event)">
+        <div class="input-group">
+          <label for="loginUser">Username or Email</label>
+          <input type="text" id="loginUser" class="cyber-input" placeholder="Enter your username or email..." required>
+        </div>
+        <div class="input-group">
+          <label for="loginPass">Password</label>
+          <input type="password" id="loginPass" class="cyber-input" placeholder="••••••••" required>
+        </div>
+        <a href="/forgot-password.html" class="forgot-link">Forgot Password?</a>
+        <button type="submit" class="btn-cyber">Sign In ❤️</button>
+      </form>
+
+      <!-- REGISTRATION FORM -->
+      <form id="signupForm" class="auth-form" onsubmit="handleSignup(event)">
+        <div class="input-group">
+          <label for="signupName">Full Name</label>
+          <input type="text" id="signupName" class="cyber-input" placeholder="Your Name" required>
+        </div>
+        <div class="input-group">
+          <label for="signupUsername">Username</label>
+          <input type="text" id="signupUsername" class="cyber-input" placeholder="Choose a username..." required>
+        </div>
+        <div class="input-group">
+          <label for="signupEmail">Email Address</label>
+          <input type="email" id="signupEmail" class="cyber-input" placeholder="you@example.com" required>
+        </div>
+        <div class="input-group">
+          <label for="signupPass">Choose Password</label>
+          <input type="password" id="signupPass" class="cyber-input" placeholder="••••••••" required>
+        </div>
+        <button type="submit" id="signupSubmitBtn" class="btn-cyber">Join Now ❤️</button>
+      </form>
+
+      <!-- OTP VERIFICATION SCREEN -->
+      <div id="otpVerificationScreen" style="display: none; padding-top: 10px;">
+        <h2 style="font-family: var(--font-body); font-size: 24px; color: var(--rose-gold); text-shadow: var(--pink-glow-shadow); text-align: center; margin-bottom: 10px;">Security Verification 🔑</h2>
+        <p style="font-size: 14px; color: var(--text-dim); text-align: center; margin-bottom: 25px; line-height: 1.5;">
+          A 6-digit access authorization code has been dispatched to <strong id="otpEmailTarget" style="color: var(--accent-pink);">you@example.com</strong>.
+        </p>
+
+        <!-- 6-digit inputs container -->
+        <div style="display: flex; justify-content: space-between; gap: 8px; margin-bottom: 25px;">
+          <input type="text" maxlength="1" class="cyber-input otp-digit-input" style="text-align: center; font-size: 24px; font-weight: bold; width: 48px; height: 48px; padding: 0;" pattern="\d" required>
+          <input type="text" maxlength="1" class="cyber-input otp-digit-input" style="text-align: center; font-size: 24px; font-weight: bold; width: 48px; height: 48px; padding: 0;" pattern="\d" required>
+          <input type="text" maxlength="1" class="cyber-input otp-digit-input" style="text-align: center; font-size: 24px; font-weight: bold; width: 48px; height: 48px; padding: 0;" pattern="\d" required>
+          <input type="text" maxlength="1" class="cyber-input otp-digit-input" style="text-align: center; font-size: 24px; font-weight: bold; width: 48px; height: 48px; padding: 0;" pattern="\d" required>
+          <input type="text" maxlength="1" class="cyber-input otp-digit-input" style="text-align: center; font-size: 24px; font-weight: bold; width: 48px; height: 48px; padding: 0;" pattern="\d" required>
+          <input type="text" maxlength="1" class="cyber-input otp-digit-input" style="text-align: center; font-size: 24px; font-weight: bold; width: 48px; height: 48px; padding: 0;" pattern="\d" required>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 25px;">
+          <span style="color: var(--text-dim);">Code expires in: <strong id="otpTimer" style="color: #ff4a4a;">05:00</strong></span>
+          <button type="button" id="btnResendOtp" style="background: none; border: none; cursor: pointer; color: var(--accent-pink); padding: 0; outline: none; font-family: var(--font-body); font-weight: 600;" onclick="handleResendOtp()">Resend Code</button>
+        </div>
+
+        <button type="button" id="btnVerifyOtp" class="btn-cyber" onclick="handleVerifyOtp()">Verify Code ❤️</button>
+        <button type="button" class="btn-cyber btn-cyber-cyan" style="margin-top: 15px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 42, 117, 0.3); font-size: 14px; padding: 10px;" onclick="cancelOtpVerification()">Back to Registration</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // Toggle tab based on query param
+      const urlParams = new URLSearchParams(window.location.search);
+      const tab = urlParams.get('tab');
+      if (tab === 'signup') {
+        switchTab('signup');
+      }
+
+      // Check auth restriction message
+      const message = urlParams.get('message');
+      if (message === 'auth') {
+        showAlert('error', 'Please log in or sign up first to start chatting! ❤️');
+      }
+
+      // Create heart particles background
+      const particleContainer = document.getElementById('heartParticles');
+      const hearts = ['💖', '❤️', '💕', '✨', '🌸'];
+      for (let i = 0; i < 15; i++) {
+        const span = document.createElement('span');
+        span.className = 'heart-particle';
+        span.textContent = hearts[Math.floor(Math.random() * hearts.length)];
+        span.style.left = Math.random() * 100 + 'vw';
+        span.style.animationDelay = Math.random() * 6 + 's';
+        span.style.fontSize = (Math.random() * 12 + 12) + 'px';
+        particleContainer.appendChild(span);
+      }
+    });
+
+    function switchTab(type) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+      clearAlerts();
+
+      if (type === 'login') {
+        document.querySelectorAll('.tab')[0].classList.add('active');
+        document.getElementById('loginForm').classList.add('active');
+      } else {
+        document.querySelectorAll('.tab')[1].classList.add('active');
+        document.getElementById('signupForm').classList.add('active');
+      }
+    }
+
+    function clearAlerts() {
+      const errBox = document.getElementById('errorBox');
+      const succBox = document.getElementById('successBox');
+      errBox.style.display = 'none';
+      succBox.style.display = 'none';
+    }
+
+    function showAlert(type, msg) {
+      clearAlerts();
+      const box = type === 'error' ? document.getElementById('errorBox') : document.getElementById('successBox');
+      box.textContent = msg;
+      box.style.display = 'block';
+    }
+
+    // Login logic
+    function handleLogin(event) {
+      event.preventDefault();
+      clearAlerts();
+
+      const usernameOrEmail = document.getElementById('loginUser').value.trim();
+      const password = document.getElementById('loginPass').value.trim();
+
+      fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usernameOrEmail, password })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          showAlert('error', data.error);
+        } else {
+          localStorage.setItem('token', data.token);
+          localStorage.setItem('userId', data.userId);
+          localStorage.setItem('username', data.username);
+          localStorage.setItem('credits', data.credits);
+          localStorage.setItem('paymentStatus', data.paymentStatus);
+          
+          showAlert('success', 'Welcome back ❤️ Redirecting...');
+          
+          setTimeout(() => {
+            window.location.href = '/index.html';
+          }, 1500);
+        }
+      })
+      .catch(err => {
+        showAlert('error', 'Login failed. Please check your credentials.');
+      });
+    }
+
+    let expiryTimerInterval = null;
+    let resendTimerInterval = null;
+
+    function startExpiryTimer(durationSeconds) {
+      if (expiryTimerInterval) clearInterval(expiryTimerInterval);
+      
+      const timerDisplay = document.getElementById('otpTimer');
+      let secondsLeft = durationSeconds;
+
+      function updateDisplay() {
+        const minutes = Math.floor(secondsLeft / 60);
+        const seconds = secondsLeft % 60;
+        timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      }
+
+      updateDisplay();
+      
+      expiryTimerInterval = setInterval(() => {
+        secondsLeft--;
+        if (secondsLeft <= 0) {
+          clearInterval(expiryTimerInterval);
+          timerDisplay.textContent = "00:00";
+          showAlert('error', 'The verification code has expired. Please click "Resend Code" to generate a new one.');
+        } else {
+          updateDisplay();
+        }
+      }, 1000);
+    }
+
+    function startResendCooldown() {
+      if (resendTimerInterval) clearInterval(resendTimerInterval);
+
+      const btn = document.getElementById('btnResendOtp');
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+      btn.style.cursor = 'not-allowed';
+      
+      let secondsLeft = 60;
+      btn.textContent = `Resend Code (${secondsLeft}s)`;
+
+      resendTimerInterval = setInterval(() => {
+        secondsLeft--;
+        if (secondsLeft <= 0) {
+          clearInterval(resendTimerInterval);
+          btn.disabled = false;
+          btn.style.opacity = '1';
+          btn.style.cursor = 'pointer';
+          btn.textContent = 'Resend Code';
+        } else {
+          btn.textContent = `Resend Code (${secondsLeft}s)`;
+        }
+      }, 1000);
+    }
+
+    function setupOtpInputListeners() {
+      const otpInputs = document.querySelectorAll('.otp-digit-input');
+      otpInputs.forEach((input, index) => {
+        // Go to next box on input
+        input.addEventListener('input', (e) => {
+          const val = e.target.value;
+          if (val && index < otpInputs.length - 1) {
+            otpInputs[index + 1].focus();
+          }
+        });
+
+        // Handle backspace or arrow keys
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Backspace') {
+            if (!input.value && index > 0) {
+              otpInputs[index - 1].focus();
+            } else {
+              input.value = '';
+            }
+            e.preventDefault();
+          }
+        });
+
+        // Paste behavior
+        input.addEventListener('paste', (e) => {
+          e.preventDefault();
+          const pasteData = (e.clipboardData || window.clipboardData).getData('text').trim();
+          if (pasteData.length === 6 && /^\d+$/.test(pasteData)) {
+            otpInputs.forEach((inp, idx) => {
+              inp.value = pasteData[idx];
+            });
+            otpInputs[5].focus();
+          }
+        });
+      });
+    }
+
+    // Signup logic
+    function handleSignup(event) {
+      event.preventDefault();
+      clearAlerts();
+
+      const fullname = document.getElementById('signupName').value.trim();
+      const username = document.getElementById('signupUsername').value.trim();
+      const email = document.getElementById('signupEmail').value.trim();
+      const password = document.getElementById('signupPass').value.trim();
+      const referredBy = localStorage.getItem('refCode') || null;
+
+      const submitBtn = document.getElementById('signupSubmitBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Processing Signup...';
+
+      fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullname, username, email, password, referredBy })
+      })
+      .then(res => res.json())
+      .then(data => {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Join Now ❤️';
+        
+        if (data.error) {
+          showAlert('error', data.error);
+        } else {
+          // Hide login/signup tab headers and signup form
+          document.querySelector('.auth-tabs').style.display = 'none';
+          document.getElementById('signupForm').style.display = 'none';
+          
+          // Show OTP Verification Screen
+          document.getElementById('otpVerificationScreen').style.display = 'block';
+          document.getElementById('otpEmailTarget').textContent = email;
+          
+          // Clear and focus OTP inputs
+          document.querySelectorAll('.otp-digit-input').forEach(inp => inp.value = '');
+          setupOtpInputListeners();
+          document.querySelectorAll('.otp-digit-input')[0].focus();
+
+          showAlert('success', 'Registration details accepted. Enter verification code.');
+
+          // Start Expiry Timer (5 mins = 300s) & Resend Cooldown (60s)
+          startExpiryTimer(300);
+          startResendCooldown();
+        }
+      })
+      .catch(err => {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Join Now ❤️';
+        showAlert('error', 'Registration failed. Please try again.');
+      });
+    }
+
+    function handleVerifyOtp() {
+      clearAlerts();
+      
+      const otpInputs = document.querySelectorAll('.otp-digit-input');
+      let otpCode = '';
+      otpInputs.forEach(input => {
+        otpCode += input.value.trim();
+      });
+
+      if (otpCode.length !== 6 || !/^\d{6}$/.test(otpCode)) {
+        showAlert('error', 'Please enter a valid 6-digit verification code.');
+        return;
+      }
+
+      const email = document.getElementById('signupEmail').value.trim();
+      const btn = document.getElementById('btnVerifyOtp');
+      btn.disabled = true;
+      btn.textContent = 'Verifying Security...';
+
+      fetch('/api/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp: otpCode })
+      })
+      .then(res => res.json())
+      .then(data => {
+        btn.disabled = false;
+        btn.textContent = 'Verify Code ❤️';
+        
+        if (data.error) {
+          showAlert('error', data.error);
+          // Clear OTP inputs on error to allow user to retry
+          otpInputs.forEach(input => input.value = '');
+          otpInputs[0].focus();
+        } else {
+          localStorage.setItem('token', data.token);
+          localStorage.setItem('userId', data.userId);
+          localStorage.setItem('username', document.getElementById('signupUsername').value.trim());
+          localStorage.setItem('credits', data.credits);
+          localStorage.setItem('paymentStatus', 'unpaid');
+
+          showAlert('success', 'Security authorized! Redirecting... ❤️');
+          
+          if (expiryTimerInterval) clearInterval(expiryTimerInterval);
+          if (resendTimerInterval) clearInterval(resendTimerInterval);
+
+          setTimeout(() => {
+            window.location.href = data.redirect || '/index.html';
+          }, 1500);
+        }
+      })
+      .catch(err => {
+        btn.disabled = false;
+        btn.textContent = 'Verify Code ❤️';
+        showAlert('error', 'OTP verification failed. Please try again.');
+      });
+    }
+
+    function handleResendOtp() {
+      clearAlerts();
+      const email = document.getElementById('signupEmail').value.trim();
+      
+      const btn = document.getElementById('btnResendOtp');
+      btn.disabled = true;
+      btn.textContent = 'Resending...';
+
+      fetch('/api/resend-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          showAlert('error', data.error);
+          startResendCooldown();
+        } else {
+          showAlert('success', 'A new verification code has been sent! 🔑');
+          
+          // Reset inputs
+          document.querySelectorAll('.otp-digit-input').forEach(inp => inp.value = '');
+          document.querySelectorAll('.otp-digit-input')[0].focus();
+          
+          // Restart timers
+          startExpiryTimer(300);
+          startResendCooldown();
+        }
+      })
+      .catch(err => {
+        showAlert('error', 'Failed to resend verification code.');
+        btn.disabled = false;
+        btn.textContent = 'Resend Code';
+      });
+    }
+
+    function cancelOtpVerification() {
+      if (expiryTimerInterval) clearInterval(expiryTimerInterval);
+      if (resendTimerInterval) clearInterval(resendTimerInterval);
+
+      clearAlerts();
+      
+      document.querySelector('.auth-tabs').style.display = 'flex';
+      document.getElementById('signupForm').style.display = 'block';
+      document.getElementById('otpVerificationScreen').style.display = 'none';
+    }
+  </script>
+</body>
+</html>

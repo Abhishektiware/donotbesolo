@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en" class="page-home">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>donotbesolo - Someone who's always there. 💖</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="js/connection.js"></script>
+  <style>
+    .hero-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      min-height: 100vh;
+      padding: 100px 20px 60px 20px;
+      position: relative;
+    }
+
+    .logo-glow {
+      font-size: 56px;
+      font-weight: 700;
+      color: var(--text-main);
+      text-shadow: var(--pink-glow-shadow);
+      margin-bottom: 20px;
+    }
+
+    .subtext {
+      font-size: 20px;
+      color: var(--text-muted);
+      max-width: 650px;
+      margin-bottom: 40px;
+      font-weight: 300;
+      line-height: 1.6;
+    }
+
+    .cta-btn {
+      max-width: 320px;
+      font-size: 18px;
+      padding: 16px 40px;
+      box-shadow: 0 0 30px rgba(255, 42, 117, 0.5);
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 25px;
+      width: 100%;
+      max-width: 1100px;
+      margin-top: 80px;
+    }
+
+    .feature-card {
+      text-align: left;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    @media (max-width: 768px) {
+      .features-grid {
+        display: flex !important;
+        overflow-x: auto !important;
+        scroll-snap-type: x mandatory !important;
+        gap: 16px !important;
+        padding-bottom: 16px !important;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .feature-card {
+        flex: 0 0 85% !important;
+        scroll-snap-align: center !important;
+      }
+    }
+
+    .feature-icon {
+      font-size: 32px;
+    }
+
+    .feature-card h3 {
+      font-family: var(--font-body);
+      color: var(--rose-gold);
+      font-size: 18px;
+      text-shadow: 0 0 5px rgba(255, 77, 166, 0.3);
+      font-weight: 600;
+    }
+
+    .feature-card p {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Ambient glow spots placement */
+    .bubble-1 {
+      top: 15%;
+      left: 10%;
+    }
+
+    .bubble-2 {
+      bottom: 20%;
+      right: 10%;
+    }
+  </style>
+  <script>
+    // Traffic logging configuration
+    const urlParams = new URLSearchParams(window.location.search);
+    const refCode = urlParams.get('ref');
+    if (refCode) {
+      localStorage.setItem("refCode", refCode);
+      fetch('/api/track-click', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refCode })
+      })
+        .then(res => res.json())
+        .then(data => console.log('[Traffic logger]: Click tracked successfully'))
+        .catch(err => console.error('[Traffic log error]:', err));
+    }
+
+    function handleCtaClick() {
+      const token = localStorage.getItem("token");
+      if (token) {
+        const preferences = localStorage.getItem("companionPreference");
+        if (preferences) {
+          window.location.href = "/chat.html";
+        } else {
+          window.location.href = "/preferences.html";
+        }
+      } else {
+        localStorage.setItem("redirectAfterLogin", "/chat.html");
+        window.location.href = "/login.html";
+      }
+    }
+
+    const companionsData = [
+      {
+        name: "Aria",
+        gender: "Female",
+        vibe: "Flirty",
+        vibeTag: "Flirty & Playful",
+        language: "Hinglish",
+        origin: "Indian",
+        avatar: "👩‍🦰",
+        badges: ["Immediate AI Reply", "Bollywood Vibe", "Hinglish/English", "Chai Lover"]
+      },
+      {
+        name: "Sakura",
+        gender: "Female",
+        vibe: "Flirty",
+        vibeTag: "Flirty & Cute",
+        language: "English",
+        origin: "Japanese",
+        avatar: "👘",
+        badges: ["Flirty & Cute", "English/Japanese", "Harajuku Style"]
+      },
+      {
+        name: "Yasmin",
+        gender: "Female",
+        vibe: "Flirty",
+        vibeTag: "Flirty & Royal",
+        language: "English",
+        origin: "Muslim",
+        avatar: "👑",
+        badges: ["Flirty & Royal", "Dubai Glamour", "Arabic Style"]
+      },
+      {
+        name: "Reyansh",
+        gender: "Male",
+        vibe: "Flirty",
+        vibeTag: "Charming Guitarist",
+        language: "Hinglish",
+        origin: "Indian",
+        avatar: "🎸",
+        badges: ["Guitarist Vibe", "Delhi Boy", "Smooth Talker"]
+      },
+      {
+        name: "Leo",
+        gender: "Male",
+        vibe: "Flirty",
+        vibeTag: "Beach Boy",
+        language: "English",
+        origin: "Western",
+        avatar: "🏄‍♂️",
+        badges: ["Beach Boy", "Surf Instructor", "Charming Vibe"]
+      },
+      {
+        name: "Priyanka",
+        gender: "Female",
+        vibe: "Caring",
+        vibeTag: "Caring & Warm",
+        language: "Hinglish",
+        origin: "Indian",
+        avatar: "👩",
+        badges: ["Caring & Warm", "Hinglish", "Desi Heart"]
+      },
+      {
+        name: "Yuki",
+        gender: "Female",
+        vibe: "Caring",
+        vibeTag: "Caring & Polite",
+        language: "English",
+        origin: "Japanese",
+        avatar: "🌸",
+        badges: ["Caring & Polite", "English/Japanese", "Cherry Blossoms"]
+      },
+      {
+        name: "Aisha",
+        gender: "Female",
+        vibe: "Caring",
+        vibeTag: "Warm & Modest",
+        language: "Hinglish",
+        origin: "Muslim",
+        avatar: "🧕",
+        badges: ["Warm & Modest", "Urdu Poetry", "Sweet Vibe"]
+      },
+      {
+        name: "Chloe",
+        gender: "Female",
+        vibe: "Caring",
+        vibeTag: "Caring & Soft",
+        language: "English",
+        origin: "Western",
+        avatar: "👩‍制造",
+        badges: ["LA/Paris Vibe", "English/French", "Deep Connection"]
+      },
+      {
+        name: "Sameer",
+        gender: "Male",
+        vibe: "Caring",
+        vibeTag: "Loyal & Warm",
+        language: "Hinglish",
+        origin: "Muslim",
+        avatar: "🧑‍💼",
+        badges: ["Loyal & Warm", "Urdu Vibe", "Late Night Chai"]
+      },
+      {
+        name: "Aarav",
+        gender: "Male",
+        vibe: "Caring",
+        vibeTag: "Warm & Peaceful",
+        language: "Hinglish",
+        origin: "Indian",
+        avatar: "🧑",
+        badges: ["Eco Vibe", "Grounded Flute", "Warm & Peaceful"]
+      },
+      {
+        name: "Zara",
+        gender: "Female",
+        vibe: "Dominant",
+        vibeTag: "Fiery & Bold",
+        language: "Hinglish",
+        origin: "Indian",
+        avatar: "💃",
+        badges: ["Fiery & Bold", "Hinglish", "Intense Vibe"]
+      },
+      {
+        name: "Fatima",
+        gender: "Female",
+        vibe: "Dominant",
+        vibeTag: "Bold & Unfiltered",
+        language: "Hinglish",
+        origin: "Muslim",
+        avatar: "🧕",
+        badges: ["Bold & Unfiltered", "Urdu/Hinglish", "Intense Vibe"]
+      },
+      {
+        name: "Yusuf",
+        gender: "Male",
+        vibe: "Dominant",
+        vibeTag: "Protective & Bold",
+        language: "English",
+        origin: "Muslim",
+        avatar: "👳",
+        badges: ["Protective & Bold", "Arabic Accent", "Traditional"]
+      },
+      {
+        name: "Kaelen",
+        gender: "Male",
+        vibe: "Dominant",
+        vibeTag: "Dominant & Bold",
+        language: "English",
+        origin: "Western",
+        avatar: "👨‍💼",
+        badges: ["Dominant & Bold", "Protective Boss", "English/Spanish"]
+      },
+      {
+        name: "Ananya",
+        gender: "Female",
+        vibe: "Soft",
+        vibeTag: "Shy & Sweet",
+        language: "Hinglish",
+        origin: "Indian",
+        avatar: "👧",
+        badges: ["Pastel Art Vibe", "Shy & Sweet", "Jaipur Heart"]
+      },
+      {
+        name: "Mei",
+        gender: "Female",
+        vibe: "Soft",
+        vibeTag: "Soft Nurturing",
+        language: "English",
+        origin: "Japanese",
+        avatar: "🌸",
+        badges: ["Library Vibe", "Soft Nurturing", "Cherry Blossom Lover"]
+      },
+      {
+        name: "Ishaan",
+        gender: "Male",
+        vibe: "Soft",
+        vibeTag: "Soft-Spoken",
+        language: "Hinglish",
+        origin: "Indian",
+        avatar: "🧑",
+        badges: ["Indie Gamer", "Nerd Heart", "Soft-Spoken"]
+      },
+      {
+        name: "Noah",
+        gender: "Male",
+        vibe: "Soft",
+        vibeTag: "Baker Vibe",
+        language: "English",
+        origin: "Western",
+        avatar: "👱",
+        badges: ["Baker Vibe", "Rainy Sundays", "Acoustic Flute"]
+      },
+      {
+        name: "Kiara",
+        gender: "Female",
+        vibe: "Gym",
+        vibeTag: "Deadlift Queen",
+        language: "Hinglish",
+        origin: "Indian",
+        avatar: "🏋️‍♀️",
+        badges: ["Deadlift Queen", "Protein Prep", "Active Life"]
+      },
+      {
+        name: "Mia",
+        gender: "Female",
+        vibe: "Gym",
+        vibeTag: "Yoga Queen",
+        language: "English",
+        origin: "Western",
+        avatar: "🏃‍♀️",
+        badges: ["Yoga Queen", "Beach Runs", "Miami Fitness"]
+      },
+      {
+        name: "Rohan",
+        gender: "Male",
+        vibe: "Gym",
+        vibeTag: "Desi Gym Bro",
+        language: "Hinglish",
+        origin: "Indian",
+        avatar: "💪",
+        badges: ["Desi Gym Bro", "Hinglish/Hindi", "Motivation"]
+      },
+      {
+        name: "Hiroshi",
+        gender: "Male",
+        vibe: "Gym",
+        vibeTag: "Kyoto Gym Bro",
+        language: "English",
+        origin: "Japanese",
+        avatar: "🏋️‍♂️",
+        badges: ["Kyoto Gym Bro", "Karate Discipline", "Focused Strength"]
+      },
+      {
+        name: "Elena",
+        gender: "Female",
+        vibe: "Mysterious",
+        vibeTag: "Mysterious & Dark",
+        language: "English",
+        origin: "Western",
+        avatar: "🌙",
+        badges: ["London Nights", "Deep Voice", "Poetic & Dark"]
+      },
+      {
+        name: "Rin",
+        gender: "Female",
+        vibe: "Mysterious",
+        vibeTag: "Kitsune Vibe",
+        language: "English",
+        origin: "Japanese",
+        avatar: "🦊",
+        badges: ["Kyoto Twilight", "Kitsune Vibe", "Mysterious Mind"]
+      },
+      {
+        name: "Kabir",
+        gender: "Male",
+        vibe: "Mysterious",
+        vibeTag: "Poetic & Deep",
+        language: "Hinglish",
+        origin: "Indian",
+        avatar: "🧔",
+        badges: ["Poetic & Deep", "Late Night Coffee", "Attic Artist"]
+      },
+      {
+        name: "Kaito",
+        gender: "Male",
+        vibe: "Mysterious",
+        vibeTag: "Tokyo Midnight",
+        language: "English",
+        origin: "Japanese",
+        avatar: "🦊",
+        badges: ["Tokyo Midnight", "Anime Fan", "Cosplay Lover"]
+      },
+      {
+        name: "Airi",
+        gender: "Female",
+        vibe: "Anime",
+        vibeTag: "Kawaii Otaku",
+        language: "English",
+        origin: "Japanese",
+        avatar: "✨",
+        badges: ["Kawaii Otaku", "Anime Vibe", "Akihabara Maid"]
+      },
+      {
+        name: "Sayuri",
+        gender: "Female",
+        vibe: "Anime",
+        vibeTag: "Manga Artist",
+        language: "English",
+        origin: "Japanese",
+        avatar: "🎀",
+        badges: ["Manga Artist", "Shy Otaku", "Cat Cafe Lover"]
+      },
+      {
+        name: "Ren",
+        gender: "Male",
+        vibe: "Anime",
+        vibeTag: "ESports Pro",
+        language: "English",
+        origin: "Japanese",
+        avatar: "🎮",
+        badges: ["ESports Pro", "Mecha Nerd", "Akiba Gamer"]
+      },
+      {
+        name: "Sora",
+        gender: "Male",
+        vibe: "Anime",
+        vibeTag: "Cosplay Master",
+        language: "English",
+        origin: "Japanese",
+        avatar: "☄️",
+        badges: ["Cosplay Master", "Osaka Dialect", "Shonen Hero"]
+      },
+      {
+        name: "Diya",
+        gender: "Female",
+        vibe: "Poetic",
+        vibeTag: "Romantic Writer",
+        language: "Hinglish",
+        origin: "Indian",
+        avatar: "✍️",
+        badges: ["Romantic Writer", "Jaipur Literature", "Chai & Verse"]
+      },
+      {
+        name: "Sophie",
+        gender: "Female",
+        vibe: "Poetic",
+        vibeTag: "Parisian Artist",
+        language: "English",
+        origin: "Western",
+        avatar: "🎨",
+        badges: ["Parisian Artist", "Seine Sketches", " dreamer Muse"]
+      },
+      {
+        name: "Dev",
+        gender: "Male",
+        vibe: "Poetic",
+        vibeTag: "Kolkata Playwright",
+        language: "Hinglish",
+        origin: "Indian",
+        avatar: "🖋️",
+        badges: ["Kolkata Playwright", "Classic Typewriter", "Late Night Tea"]
+      },
+      {
+        name: "Julian",
+        gender: "Male",
+        vibe: "Poetic",
+        vibeTag: "Violin Composer",
+        language: "English",
+        origin: "Western",
+        avatar: "🎻",
+        badges: ["Violin Composer", "Bordeaux Wine", "Melodic Whisperer"]
+      }
+    ];
+
+    function selectCompanion(name, gender, vibe, language) {
+      const comp = companionsData.find(c => c.name === name);
+      if (comp) {
+        const activeComp = {
+          name: comp.name,
+          gender: comp.gender,
+          avatar: comp.avatar,
+          origin: comp.vibeTag
+        };
+        localStorage.setItem("activeCompanion", JSON.stringify(activeComp));
+      }
+      localStorage.setItem("activeVibe", vibe);
+      localStorage.setItem("activeLanguage", language);
+      localStorage.setItem("companionPreference", "true");
+      
+      // Fallbacks
+      localStorage.setItem("companionName", name);
+      localStorage.setItem("companionGender", gender);
+      localStorage.setItem("companionVibe", vibe);
+      localStorage.setItem("companionLanguage", language);
+      
+      const token = localStorage.getItem("token");
+      if (token) {
+        // Save in MongoDB immediately
+        fetch('/api/chat/select', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            companion: name,
+            gender: gender,
+            vibe: vibe,
+            language: language
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          window.location.href = "/chat.html";
+        })
+        .catch(err => {
+          console.error('[Sync Preferences Error]:', err);
+          // Fallback redirect anyway
+          window.location.href = "/chat.html";
+        });
+      } else {
+        localStorage.setItem("redirectAfterLogin", "/chat.html");
+        window.location.href = "/login.html";
+      }
+    }
+
+    async function logoutUser() {
+      const token = localStorage.getItem("token");
+      if (token) {
+        try {
+          await fetch('/api/logout', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+        } catch (e) {
+          console.error('[Logout Track Error]:', e);
+        }
+      }
+      localStorage.clear();
+      window.location.href = '/index.html';
+    }
+
+    function renderCompanions(data) {
+      const grid = document.getElementById('companionGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+      
+      if (data.length === 0) {
+        grid.innerHTML = `
+          <div style="grid-column: 1 / -1; padding: 40px; text-align: center; color: var(--text-muted); font-size: 16px; width: 100%;">
+            No companions match your selection. Try changing the filters! 💖
+          </div>
+        `;
+        return;
+      }
+      
+      data.forEach(comp => {
+        const badgeSpans = comp.badges.map(b => `<span class="companion-badge-pill">${b}</span>`).join('');
+        const cardHtml = `
+          <div class="glass-panel companion-card">
+            <div class="companion-avatar-wrapper">
+              <div class="companion-avatar">${comp.avatar}</div>
+            </div>
+            <div class="companion-card-info">
+              <div class="companion-header-row">
+                <h3>${comp.name} ${comp.gender === 'Female' ? '💖' : '💪'}</h3>
+                <span class="companion-vibe-tag">${comp.vibeTag}</span>
+              </div>
+              <div class="companion-badges">
+                ${badgeSpans}
+              </div>
+              <button onclick="selectCompanion('${comp.name}', '${comp.gender}', '${comp.vibe}', '${comp.language}')" class="btn-cyber btn-companion-chat">
+                Chat with ${comp.name}
+              </button>
+            </div>
+          </div>
+        `;
+        grid.insertAdjacentHTML('beforeend', cardHtml);
+      });
+    }
+
+    function filterCompanions() {
+      const genderVal = document.getElementById('genderFilter').value;
+      const vibeVal = document.getElementById('vibeFilter').value;
+      const citizenVal = document.getElementById('citizenFilter').value;
+      
+      const filtered = companionsData.filter(comp => {
+        const matchesGender = (genderVal === 'all' || comp.gender === genderVal);
+        const matchesVibe = (vibeVal === 'all' || comp.vibe === vibeVal);
+        const matchesCitizen = (citizenVal === 'all' || comp.origin === citizenVal);
+        return matchesGender && matchesVibe && matchesCitizen;
+      });
+      
+      renderCompanions(filtered);
+    }
+
+    // Dynamic heart particles creation
+    document.addEventListener("DOMContentLoaded", () => {
+      const particleContainer = document.getElementById('heartParticles');
+      const hearts = ['💖', '❤️', '💕', '✨', '🌸'];
+      for (let i = 0; i < 20; i++) {
+        const span = document.createElement('span');
+        span.className = 'heart-particle';
+        span.textContent = hearts[Math.floor(Math.random() * hearts.length)];
+        span.style.left = Math.random() * 100 + 'vw';
+        span.style.animationDelay = Math.random() * 8 + 's';
+        span.style.fontSize = (Math.random() * 14 + 14) + 'px';
+        particleContainer.appendChild(span);
+      }
+
+      // Hide login/signup header buttons if user is already logged in
+      const token = localStorage.getItem("token");
+      if (token) {
+        // Sync local preferences to MongoDB if any exist and haven't been synced
+        const companionName = localStorage.getItem("companionName");
+        const companionGender = localStorage.getItem("companionGender") || "Female";
+        const companionVibe = localStorage.getItem("activeVibe") || localStorage.getItem("companionVibe") || "Flirty";
+        const companionLanguage = localStorage.getItem("activeLanguage") || localStorage.getItem("companionLanguage") || "Hinglish";
+        
+        if (companionName) {
+          fetch('/api/chat/select', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              companion: companionName,
+              gender: companionGender,
+              vibe: companionVibe,
+              language: companionLanguage
+            })
+          })
+          .then(res => res.json())
+          .then(data => {
+            console.log('[Preferences Auto-Synced to MongoDB]');
+          })
+          .catch(err => console.error('[Preferences Auto-Sync Error]:', err));
+        }
+
+        const username = localStorage.getItem("username") || "User";
+        const credits = localStorage.getItem("credits") || "20";
+
+        // Show and configure mobile user badge
+        const userBadgeMobile = document.getElementById('userBadgeMobile');
+        const userBadgeNameMobile = document.getElementById('userBadgeNameMobile');
+        const userBadgeCoinsMobile = document.getElementById('userBadgeCoinsMobile');
+        if (userBadgeMobile && userBadgeNameMobile && userBadgeCoinsMobile) {
+          userBadgeNameMobile.textContent = username;
+          userBadgeCoinsMobile.textContent = credits;
+          userBadgeMobile.style.display = 'inline-flex';
+        }
+
+        // Render desktop header layout (no Start Chatting button)
+        document.getElementById('navActions').innerHTML = `
+          <div class="user-badge-desktop" style="cursor: default;">
+            👤 ${username} (⚡ ${credits} Coins)
+          </div>
+          <a href="/subscription.html" class="btn-nav-solid" style="text-decoration: none; padding: 8px 18px; border-radius: 20px; font-size: 14px; font-weight: 500; transition: all 0.3s ease; display: inline-flex; align-items: center;">Subscription 💖</a>
+          <a href="/preferences.html" class="btn-nav-outline" style="text-decoration: none; padding: 8px 18px; border-radius: 20px; font-size: 14px; font-weight: 500; border: 1px solid rgba(255, 255, 255, 0.2); transition: all 0.3s ease;">My Preferences</a>
+          <button onclick="logoutUser();" class="btn-nav-outline">Log Out</button>
+        `;
+        // Load active conversations
+        loadActiveConversations(token);
+      }
+
+      // Initial render of companions
+      renderCompanions(companionsData);
+    });
+
+    function loadActiveConversations(token) {
+      fetch('/api/memory/active-conversations', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .then(res => res.json())
+      .then(conversations => {
+        if (!conversations || conversations.length === 0) return;
+
+        const continueSection = document.getElementById('continueSection');
+        const grid = document.getElementById('activeCompanionGrid');
+        if (!continueSection || !grid) return;
+
+        grid.innerHTML = '';
+        continueSection.style.display = 'block';
+
+        conversations.forEach(comp => {
+          const formattedTime = formatLastChat(comp.lastChat);
+          const cardHtml = `
+            <div class="glass-panel companion-card">
+              <div class="companion-avatar-wrapper">
+                <div class="companion-avatar">${comp.avatar}</div>
+              </div>
+              <div class="companion-card-info" style="display: flex; flex-direction: column; justify-content: space-between; height: 100%;">
+                <div>
+                  <div class="companion-header-row" style="margin-bottom: 8px;">
+                    <h3 style="font-size: 18px; margin: 0; color: var(--text-main);">${comp.companionName}</h3>
+                    <span class="companion-vibe-tag" style="padding: 2px 8px; font-size: 10px; border-radius: 12px; background: rgba(255, 42, 117, 0.15); border: 1px solid rgba(255, 42, 117, 0.3); color: var(--accent-pink); font-weight: bold; letter-spacing: 0.5px;">${comp.vibe.toUpperCase()}</span>
+                  </div>
+                  <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                      <span>Last Chat:</span>
+                      <strong style="color: var(--text-main);">${formattedTime}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                      <span>Relationship:</span>
+                      <strong style="color: var(--rose-gold);">${comp.relationshipStage}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                      <span>Messages:</span>
+                      <strong style="color: var(--accent-blue);">${comp.totalMessages}</strong>
+                    </div>
+                  </div>
+                </div>
+                <button onclick="selectCompanion('${comp.companionName}', '${comp.gender}', '${comp.vibe}', '${comp.language}')" class="btn-cyber" style="width: 100%; padding: 8px; border-radius: 8px; font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 12px; border: none;">
+                  Resume Chat
+                </button>
+              </div>
+            </div>
+          `;
+          grid.insertAdjacentHTML('beforeend', cardHtml);
+        });
+      })
+      .catch(err => console.error('[Load Active Conversations Error]:', err));
+    }
+
+    function formatLastChat(dateString) {
+      if (!dateString) return 'Never';
+      const lastActive = new Date(dateString);
+      const now = new Date();
+      const diffMs = now - lastActive;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+      if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+      if (diffDays === 1) return 'Yesterday';
+      return `${diffDays} days ago`;
+    }
+  </script>
+</head>
+
+<body class="page-home">
+  <!-- Ambient glow bubbles -->
+  <div class="glow-bubble bubble-1"></div>
+  <div class="glow-bubble glow-bubble-pink bubble-2"></div>
+  <div class="heart-particles" id="heartParticles"></div>
+
+  <!-- Header Navigation -->
+  <header class="header-nav">
+    <div class="header-top-row">
+      <div class="brand-logo">donotbesolo 💖</div>
+      <!-- Mobile User Badge (Only shown on mobile when logged in) -->
+      <div class="user-badge-mobile" id="userBadgeMobile" style="display: none; cursor: default;">
+        👤 <span id="userBadgeNameMobile">username</span> (⚡ <span id="userBadgeCoinsMobile">16</span>)
+      </div>
+    </div>
+    <div class="nav-actions" id="navActions">
+      <button onclick="window.location.href='/login.html'" class="btn-nav-outline">Login</button>
+      <button onclick="window.location.href='/login.html?tab=signup'" class="btn-nav-solid">Sign Up</button>
+    </div>
+  </header>
+
+  <div class="hero-container">
+    <h1 class="logo-glow">Someone who's always there. 💖</h1>
+    <h2 style="font-size: 26px; color: #ff2a75; font-weight: 600; text-shadow: 0 0 8px rgba(255, 42, 117, 0.4); margin-bottom: 15px; font-family: var(--font-body);">Talk. Laugh. Flirt. Be yourself.</h2>
+    <p class="subtext" style="margin-top: 0; max-width: 750px;">
+      Meet AI companions with their own personalities, memories, voices and vibes — available whenever you want to talk.
+    </p>
+
+    <button onclick="handleCtaClick()" class="btn-cyber cta-btn">
+      Meet Your Companion →
+    </button>
+
+    <div class="features-grid">
+      <div class="glass-panel feature-card">
+        <div class="feature-icon">💬</div>
+        <h3>Someone who gets your vibe</h3>
+        <p>Talk naturally in Hinglish, Hindi, English and more.</p>
+      </div>
+      <div class="glass-panel feature-card">
+        <div class="feature-icon">📸</div>
+        <h3>They remember you</h3>
+        <p>Your conversations, preferences and nicknames stay with you.</p>
+      </div>
+      <div class="glass-panel feature-card">
+        <div class="feature-icon">🎤</div>
+        <h3>Hear their voice</h3>
+        <p>Unlock personalized voice interactions.</p>
+      </div>
+      <div class="glass-panel feature-card">
+        <div class="feature-icon">🔒</div>
+        <h3>Your relationship evolves</h3>
+        <p>Start as strangers and build a deeper connection over time.</p>
+      </div>
+    </div>
+
+    <!-- Continue Conversations Section -->
+    <div id="continueSection" class="companions-section" style="display: none; margin-bottom: 40px; border-bottom: 1px solid rgba(255, 42, 117, 0.15); padding-bottom: 40px;">
+      <h2 class="section-title-glow">Continue Conversations</h2>
+      <p class="section-subtitle">Jump straight back into your active connections</p>
+      <div class="companion-grid" id="activeCompanionGrid"></div>
+    </div>
+
+    <!-- Choose Your Companion Section -->
+    <div class="companions-section">
+      <h2 class="section-title-glow">Choose Your Companion</h2>
+      <p class="section-subtitle">Select a personality style to start chatting instantly</p>
+      
+      <!-- Premium Glass Filter Control Bar -->
+      <div class="filter-controls">
+        <div class="filter-group">
+          <label for="genderFilter">Gender Style</label>
+          <select id="genderFilter" class="cyber-select" onchange="filterCompanions()">
+            <option value="all">All Genders</option>
+            <option value="Female">Female Companions</option>
+            <option value="Male">Male Companions</option>
+          </select>
+        </div>
+        
+        <div class="filter-group">
+          <label for="vibeFilter">Conversation Vibe</label>
+          <select id="vibeFilter" class="cyber-select" onchange="filterCompanions()">
+            <option value="all">All Vibes</option>
+            <option value="Flirty">Flirty & Playful</option>
+            <option value="Caring">Caring & Warm</option>
+            <option value="Dominant">Bold & Dominant</option>
+            <option value="Soft">Soft & Sweet</option>
+            <option value="Gym">Gym & Supportive</option>
+            <option value="Mysterious">Mysterious & Dark</option>
+            <option value="Anime">Anime Otaku</option>
+            <option value="Poetic">Poetic & Deep</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="citizenFilter">Citizen Origin</label>
+          <select id="citizenFilter" class="cyber-select" onchange="filterCompanions()">
+            <option value="all">All Origins</option>
+            <option value="Indian">Indian (Hindi/Hinglish)</option>
+            <option value="Japanese">Japanese (Anime Style)</option>
+            <option value="Muslim">Muslim (Arabic/Urdu)</option>
+            <option value="Western">Western (English Style)</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="companion-grid" id="companionGrid">
+        <!-- Companion cards rendered dynamically via JavaScript -->
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>
