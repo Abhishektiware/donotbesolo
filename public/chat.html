@@ -1162,7 +1162,13 @@
 
     function showOverlayStatus(type, msg) {
       const overlay = document.getElementById('statusOverlay');
-      overlay.textContent = msg;
+      let displayMsg = '';
+      if (msg && typeof msg === 'object') {
+        displayMsg = msg.message || msg.error || JSON.stringify(msg);
+      } else {
+        displayMsg = msg || '';
+      }
+      overlay.textContent = displayMsg;
       overlay.className = `overlay-status glass-panel`;
       overlay.style.backgroundColor = type === 'success' ? 'rgba(255, 42, 117, 0.15)' : 'rgba(255, 74, 74, 0.15)';
       overlay.style.border = type === 'success' ? '1px solid #ff2a75' : '1px solid #ff4a4a';
