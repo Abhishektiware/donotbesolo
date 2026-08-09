@@ -1,4 +1,4 @@
-(function() {
+(function () {
   // Use environment-based API base URL: localhost on local hosts, relative/origin in production
   const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:'
     ? 'http://localhost:3000'
@@ -140,7 +140,7 @@
     }
   }
 
-  window.fetch = async function(url, options = {}) {
+  window.fetch = async function (url, options = {}) {
     let targetUrl = url;
     if (typeof url === 'string' && url.startsWith('/api/')) {
       targetUrl = API_BASE_URL + url;
@@ -155,7 +155,7 @@
 
         // Treat 2xx status codes and client errors (4xx) as successful server responses.
         // If it's a client error (like 401 Unauthorized or 404 Not Found), the server is reachable and active.
-        if (response.ok || (response.status >= 400 && response.status < 500)) {
+        if (response.ok || (response.status >= 400 && response.status < 600)) {
           return response;
         }
 
