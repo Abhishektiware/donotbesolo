@@ -595,19 +595,39 @@
     }
 
     /* Memory Drawer Styles */
+    .drawer-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(10, 5, 20, 0.7);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 999;
+      display: none;
+      animation: fadeInOverlay 0.3s ease-out;
+    }
+
+    @keyframes fadeInOverlay {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
     .memory-drawer {
       position: fixed;
       top: 0;
+      bottom: 0;
       right: 0;
-      width: 380px;
-      height: 100vh;
-      background: rgba(15, 5, 30, 0.96);
+      width: 100%;
+      max-width: 380px;
+      background: rgba(15, 5, 30, 0.98);
       border-left: 1px solid rgba(255, 42, 117, 0.3);
-      box-shadow: -10px 0 30px rgba(0, 0, 0, 0.7);
+      box-shadow: -10px 0 35px rgba(0, 0, 0, 0.85);
       z-index: 1000;
       display: flex;
       flex-direction: column;
-      animation: slideIn 0.3s ease-out;
+      animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
       overflow: hidden;
       font-family: var(--font-body, 'Inter', sans-serif);
       color: #e0d5f5;
@@ -657,6 +677,22 @@
       display: flex;
       flex-direction: column;
       gap: 20px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Scrollbars */
+    .drawer-content::-webkit-scrollbar {
+      width: 6px;
+    }
+    .drawer-content::-webkit-scrollbar-track {
+      background: rgba(15, 5, 30, 0.5);
+    }
+    .drawer-content::-webkit-scrollbar-thumb {
+      background: rgba(255, 42, 117, 0.25);
+      border-radius: 3px;
+    }
+    .drawer-content::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 42, 117, 0.5);
     }
     
     .stat-card {
@@ -740,6 +776,21 @@
       overflow-y: auto;
       padding-right: 5px;
     }
+
+    .memories-list::-webkit-scrollbar {
+      width: 4px;
+    }
+    .memories-list::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 2px;
+    }
+    .memories-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 42, 117, 0.3);
+      border-radius: 2px;
+    }
+    .memories-list::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 42, 117, 0.6);
+    }
     
     .memory-item {
       display: flex;
@@ -775,23 +826,23 @@
     .drawer-actions {
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      margin-top: auto;
+      gap: 8px;
+      margin-top: 15px;
       padding-top: 20px;
       border-top: 1px solid rgba(255, 42, 117, 0.2);
       flex-shrink: 0;
     }
     
     .btn-drawer-action {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       color: #fff;
-      padding: 10px;
+      padding: 9px 12px;
       border-radius: 8px;
       font-size: 12px;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.3s;
+      transition: all 0.2s ease-in-out;
       text-align: center;
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -828,6 +879,37 @@
     
     .btn-drawer-action.btn-danger-solid:hover {
       box-shadow: 0 0 15px rgba(255, 74, 74, 0.6);
+    }
+
+    /* Mobile Responsive Optimizations for Memory Drawer */
+    @media (max-width: 480px) {
+      .memory-drawer {
+        max-width: 100%;
+        border-left: none;
+      }
+      .drawer-header {
+        padding: 15px;
+      }
+      .drawer-content {
+        padding: 15px;
+        gap: 15px;
+      }
+      .stat-card {
+        padding: 12px;
+      }
+      .bond-stats {
+        gap: 8px;
+        padding-top: 10px;
+      }
+      .drawer-actions {
+        padding-top: 15px;
+        gap: 6px;
+        margin-top: 10px;
+      }
+      .btn-drawer-action {
+        padding: 8px;
+        font-size: 11px;
+      }
     }
   </style>
   <script>
@@ -1747,11 +1829,14 @@
 
     function toggleMemoryDrawer() {
       const drawer = document.getElementById('memoryDrawer');
+      const overlay = document.getElementById('memoryDrawerOverlay');
       if (drawer.style.display === 'none' || !drawer.style.display) {
         drawer.style.display = 'flex';
+        if (overlay) overlay.style.display = 'block';
         loadMemoryDetails();
       } else {
         drawer.style.display = 'none';
+        if (overlay) overlay.style.display = 'none';
       }
     }
 
@@ -2142,6 +2227,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Memory Drawer Overlay Backdrop -->
+  <div id="memoryDrawerOverlay" class="drawer-overlay" style="display: none;" onclick="toggleMemoryDrawer()"></div>
 
   <!-- Memory Drawer Panel -->
   <div id="memoryDrawer" class="memory-drawer" style="display: none;">
