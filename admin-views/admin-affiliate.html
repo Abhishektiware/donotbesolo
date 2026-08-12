@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Influencer Affiliate Dashboard - Admin Panel</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    :root {
+      --bg-base: #0d0714;
+      --bg-card: rgba(255, 255, 255, 0.04);
+      --accent-pink: #ff2a75;
+      --rose-gold: #ff4da6;
+      --soft-violet: #8a2be2;
+      --neon-cyan: #00f0ff;
+      --text-main: #ffffff;
+      --text-muted: #dfd2e8;
+      --text-dim: #7c6a8f;
+      --glass-border: 1px solid rgba(255, 42, 117, 0.15);
+      --success-green: #2ecc71;
+      --warning-yellow: #f1c40f;
+      --danger-red: #e74c3c;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: 'Outfit', sans-serif;
+      padding: 30px;
+    }
+
+    h1, h2, h3, h4 {
+      font-family: 'Playfair Display', serif;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .dashboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 40px;
+      border-bottom: 2px solid rgba(255, 42, 117, 0.2);
+      padding-bottom: 20px;
+    }
+
+    .dashboard-header h1 {
+      font-size: 36px;
+      background: linear-gradient(135deg, var(--accent-pink), var(--neon-cyan));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 10px rgba(255, 42, 117, 0.2);
+    }
+
+    .btn-container {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+    }
+
+    button, .btn {
+      background: linear-gradient(135deg, var(--accent-pink) 0%, var(--rose-gold) 100%);
+      color: var(--text-main);
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(255, 42, 117, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    button:hover, .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 42, 117, 0.5);
+    }
+
+    button.btn-secondary {
+      background: linear-gradient(135deg, var(--soft-violet) 0%, var(--rose-gold) 100%);
+      box-shadow: 0 4px 15px rgba(138, 43, 226, 0.3);
+    }
+
+    button.btn-cyan {
+      background: linear-gradient(135deg, #00b4db 0%, #00f0ff 100%);
+      color: #0d0714;
+      font-weight: 700;
+      box-shadow: 0 4px 15px rgba(0, 240, 255, 0.3);
+    }
+
+    /* KPI Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      margin-bottom: 45px;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      border: var(--glass-border);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 8px 32px 0 rgba(13, 7, 20, 0.6);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      text-align: center;
+      transition: transform 0.3s ease, border-color 0.3s ease;
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(255, 77, 166, 0.4);
+      box-shadow: 0 10px 40px rgba(255, 42, 117, 0.2);
+    }
+
+    .kpi-title {
+      font-size: 13px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .kpi-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-main);
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+    }
+
+    .kpi-value.highlight {
+      color: var(--accent-pink);
+      text-shadow: 0 0 10px rgba(255, 42, 117, 0.4);
+    }
+
+    .kpi-value.cyan-highlight {
+      color: var(--neon-cyan);
+      text-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+    }
+
+    /* Table styles */
+    .table-container {
+      background: var(--bg-card);
+      border: var(--glass-border);
+      border-radius: 16px;
+      padding: 30px;
+      margin-bottom: 40px;
+      box-shadow: 0 8px 32px 0 rgba(13, 7, 20, 0.6);
+      overflow-x: auto;
+    }
+
+    .table-container h2 {
+      margin-bottom: 20px;
+      font-size: 24px;
+      color: var(--rose-gold);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    th {
+      padding: 15px;
+      border-bottom: 2px solid rgba(255, 42, 117, 0.15);
+      color: var(--text-dim);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+
+    td {
+      padding: 16px 15px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    tr.clickable:hover td {
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--text-main);
+      cursor: pointer;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .status-badge.active {
+      background: rgba(46, 204, 113, 0.15);
+      color: var(--success-green);
+      border: 1px solid rgba(46, 204, 113, 0.3);
+    }
+
+    .status-badge.paused {
+      background: rgba(241, 196, 15, 0.15);
+      color: var(--warning-yellow);
+      border: 1px solid rgba(241, 196, 15, 0.3);
+    }
+
+    .status-badge.terminated {
+      background: rgba(231, 76, 60, 0.15);
+      color: var(--danger-red);
+      border: 1px solid rgba(231, 76, 60, 0.3);
+    }
+
+    /* Modal styles */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(13, 7, 20, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background: linear-gradient(135deg, rgba(21, 11, 31, 0.98) 0%, rgba(13, 7, 20, 0.98) 100%);
+      border: 2px solid rgba(255, 77, 166, 0.3);
+      border-radius: 20px;
+      width: 90%;
+      max-width: 950px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 40px;
+      box-shadow: 0 12px 40px rgba(13, 7, 20, 0.8), 0 0 25px rgba(255, 42, 117, 0.25);
+      position: relative;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 25px;
+      right: 25px;
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 28px;
+      cursor: pointer;
+      box-shadow: none;
+      padding: 0;
+    }
+
+    .modal-close:hover {
+      color: var(--accent-pink);
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Forms */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 13px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 42, 117, 0.2);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 14px;
+      outline: none;
+      box-sizing: border-box;
+      transition: border-color 0.3s;
+    }
+
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+      border-color: var(--rose-gold);
+      box-shadow: 0 0 10px rgba(255, 77, 166, 0.2);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    /* Detail Page Grid */
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 2.5fr;
+      gap: 30px;
+      margin-top: 20px;
+    }
+
+    .detail-sidebar {
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 42, 117, 0.1);
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .detail-sidebar h3 {
+      border-bottom: 1px solid rgba(255, 42, 117, 0.15);
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+      color: var(--accent-pink);
+    }
+
+    .detail-item {
+      margin-bottom: 16px;
+    }
+
+    .detail-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .detail-value {
+      font-size: 15px;
+      color: var(--text-main);
+      font-weight: 500;
+    }
+
+    .detail-tabs {
+      display: flex;
+      gap: 20px;
+      border-bottom: 1px solid rgba(255, 42, 117, 0.15);
+      margin-bottom: 20px;
+    }
+
+    .tab-btn {
+      background: transparent;
+      box-shadow: none;
+      color: var(--text-dim);
+      padding: 10px 5px;
+      border-radius: 0;
+      border-bottom: 2px solid transparent;
+      font-size: 15px;
+    }
+
+    .tab-btn:hover {
+      transform: none;
+      box-shadow: none;
+      color: var(--text-main);
+    }
+
+    .tab-btn.active {
+      color: var(--rose-gold);
+      border-bottom: 2px solid var(--rose-gold);
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    .report-card {
+      border: 1px dashed rgba(255, 77, 166, 0.4);
+      background: rgba(25, 12, 38, 0.6);
+      padding: 25px;
+      border-radius: 12px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .report-card h3 {
+      font-family: monospace;
+      color: var(--neon-cyan);
+      margin-bottom: 15px;
+    }
+
+    .date-filter-select {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 42, 117, 0.3);
+      border-radius: 8px;
+      padding: 10px 15px;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 14px;
+      outline: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .date-filter-select:focus {
+      border-color: var(--rose-gold);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="dashboard-header">
+    <div>
+      <h1>Influencer Affiliate Tracking</h1>
+      <p style="color: var(--text-dim); font-size: 14px; margin-top: 5px;">Configure affiliate creators, monitor conversion referrals, payouts, and track ROI</p>
+    </div>
+    <div class="btn-container">
+      <div style="display: flex; align-items: center; gap: 8px; margin-right: 15px;">
+        <span style="color: var(--text-dim); font-size: 12px; font-weight: 600; text-transform: uppercase;">Range:</span>
+        <select id="date-filter" class="date-filter-select" onchange="handleDateFilterChange()">
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="7days">Last 7 Days</option>
+          <option value="30days">Last 30 Days</option>
+          <option value="thismonth">This Month</option>
+          <option value="all" selected>All Time</option>
+        </select>
+      </div>
+      <button onclick="openModal('modal-add-affiliate')">+ Add Creator</button>
+      <button class="btn-secondary" onclick="openModal('modal-add-promo')">+ Promo Code</button>
+      <button class="btn-cyan" onclick="openModal('modal-reverse')">↺ Reverse Commission</button>
+    </div>
+  </div>
+
+  <!-- KPI SUMMARY CARDS -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-title">Total Affiliates</div>
+      <div class="kpi-value" id="kpi-total-affiliates">0</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">Referral Visitors (Clicks)</div>
+      <div class="kpi-value cyan-highlight" id="kpi-total-clicks">0</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">Code Applications</div>
+      <div class="kpi-value" id="kpi-total-code-uses">0</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">Purchases</div>
+      <div class="kpi-value highlight" id="kpi-total-purchases">0</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">Affiliate Revenue</div>
+      <div class="kpi-value" id="kpi-total-revenue">₹0.00</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">Commission Earned</div>
+      <div class="kpi-value" id="kpi-total-earned" style="color: var(--rose-gold);">₹0.00</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">Commission Paid</div>
+      <div class="kpi-value" id="kpi-total-paid" style="color: var(--success-green);">₹0.00</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">Commission Pending</div>
+      <div class="kpi-value" id="kpi-total-pending" style="color: var(--warning-yellow);">₹0.00</div>
+    </div>
+  </div>
+
+  <!-- PARTNERS LIST TABLE -->
+  <div class="table-container">
+    <h2>Affiliate Creator Network</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Name / Instagram</th>
+          <th>Promo Code(s)</th>
+          <th>Clicks</th>
+          <th>Unique Code Users</th>
+          <th>Purchases</th>
+          <th>Revenue</th>
+          <th>Comm %</th>
+          <th>Earned</th>
+          <th>Paid</th>
+          <th>Pending</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="partners-table-body">
+        <tr>
+          <td colspan="11" style="text-align: center; padding: 30px; color: var(--text-dim);">Loading affiliate partners...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- PROMO CODES LIST TABLE -->
+  <div class="table-container">
+    <h2>Promo Code & Referral Management</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Promo Code</th>
+          <th>Instagram Owner</th>
+          <th>Discount Amount</th>
+          <th>Commission Rate</th>
+          <th>Created Date</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="promocodes-table-body">
+        <tr>
+          <td colspan="7" style="text-align: center; padding: 30px; color: var(--text-dim);">Loading promo codes...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- MODAL: ADD AFFILIATE -->
+  <div class="modal" id="modal-add-affiliate">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal('modal-add-affiliate')">&times;</button>
+      <h2>Add New Affiliate Creator</h2>
+      <p style="color: var(--text-dim); margin-bottom: 20px; font-size: 13px;">Create partner profiles to generate explicit Mongoose relationships.</p>
+      
+      <form id="form-add-affiliate" onsubmit="submitAddAffiliate(event)">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" id="add-affiliate-name" required placeholder="e.g. Sarah Jennings">
+          </div>
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" id="add-affiliate-email" required placeholder="e.g. sarah@example.com">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Instagram Username</label>
+            <input type="text" id="add-affiliate-username" required placeholder="e.g. @sarah_ai">
+          </div>
+          <div class="form-group">
+            <label>Instagram URL</label>
+            <input type="url" id="add-affiliate-url" required placeholder="e.g. https://instagram.com/sarah_ai">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Commission Rate (%)</label>
+            <input type="number" id="add-affiliate-commission" required min="0" max="100" value="20">
+          </div>
+          <div class="form-group">
+            <label>Phone Number (Optional)</label>
+            <input type="text" id="add-affiliate-phone" placeholder="e.g. +91 9999999999">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Platform User ID Link (Optional - for self-referral protection)</label>
+          <input type="text" id="add-affiliate-userId" placeholder="Mongoose User _id of the affiliate's customer account">
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea id="add-affiliate-notes" rows="3" placeholder="Partnership details, contract links, etc."></textarea>
+        </div>
+        <div style="text-align: right; margin-top: 20px;">
+          <button type="submit">Create Partner Profile</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CREATE PROMO CODE -->
+  <div class="modal" id="modal-add-promo">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal('modal-add-promo')">&times;</button>
+      <h2>Create & Assign Promo Code</h2>
+      <p style="color: var(--text-dim); margin-bottom: 20px; font-size: 13px;">Establish an explicit relationship. Never guess Instagram ownership.</p>
+      
+      <form id="form-add-promo" onsubmit="submitAddPromo(event)">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Promo Code (Uppercase)</label>
+            <input type="text" id="add-promo-code" required placeholder="e.g. SARAH99">
+          </div>
+          <div class="form-group">
+            <label>Discount Amount (₹ Flat Value)</label>
+            <input type="number" id="add-promo-discount" required min="0" placeholder="e.g. 11">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Assign Affiliate Partner (Owner)</label>
+            <select id="add-promo-partner" required>
+              <option value="">-- Select Partner --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Commission Rate Override (%) (Leave empty to use partner rate)</label>
+            <input type="number" id="add-promo-commission" min="0" max="100" placeholder="e.g. 20">
+          </div>
+        </div>
+        <div style="text-align: right; margin-top: 20px;">
+          <button type="submit">Generate Code</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: REVERSE COMMISSION -->
+  <div class="modal" id="modal-reverse">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal('modal-reverse')">&times;</button>
+      <h2>Reverse Affiliate Commission</h2>
+      <p style="color: var(--text-dim); margin-bottom: 20px; font-size: 13px;">Reverse commission from refunds. Maintains the complete audit trail.</p>
+      
+      <form id="form-reverse" onsubmit="submitReverseConversion(event)">
+        <div class="form-group">
+          <label>Transaction ID / Order ID</label>
+          <input type="text" id="reverse-tx-id" required placeholder="e.g. 66a2e2fbb314ab0192cc051b">
+        </div>
+        <div class="form-group">
+          <label>Reason for Reversal</label>
+          <input type="text" id="reverse-reason" required placeholder="e.g. Customer requested refund">
+        </div>
+        <div style="text-align: right; margin-top: 20px;">
+          <button type="submit" class="btn-cyan">Confirm Reversal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: PARTNER DETAIL VIEW -->
+  <div class="modal" id="modal-detail">
+    <div class="modal-content" style="max-width: 1100px;">
+      <button class="modal-close" onclick="closeModal('modal-detail')">&times;</button>
+      <h2 id="detail-partner-name">Creator Profile</h2>
+      <p id="detail-partner-instagram" style="color: var(--rose-gold); margin-top: 5px; font-size: 15px; font-weight: 600; cursor: pointer;">@username</p>
+      
+      <div class="detail-grid">
+        <div class="detail-sidebar">
+          <h3>Partner Info</h3>
+          <div class="detail-item">
+            <div class="detail-label">Email</div>
+            <div class="detail-value" id="detail-email">-</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Phone</div>
+            <div class="detail-value" id="detail-phone">-</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Default Commission</div>
+            <div class="detail-value" id="detail-commission-pct">-</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Associated Promo Codes</div>
+            <div class="detail-value" id="detail-codes-list">-</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Status</div>
+            <div class="detail-value" id="detail-status">-</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Created At</div>
+            <div class="detail-value" id="detail-created-at">-</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Notes</div>
+            <div class="detail-value" id="detail-notes" style="font-size: 13px; line-height: 1.4; color: var(--text-dim);">-</div>
+          </div>
+        </div>
+
+        <div>
+          <!-- PERIOD PERFORMANCE GRID -->
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px;">
+            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 42, 117, 0.1); border-radius: 10px; padding: 15px; text-align: center;">
+              <h4 style="color: var(--rose-gold); margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase;">Today</h4>
+              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Users: <span id="detail-today-users" style="color: var(--text-main); font-weight: 600;">0</span></div>
+              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Purchases: <span id="detail-today-purchases" style="color: var(--text-main); font-weight: 600;">0</span></div>
+              <div style="font-size: 12px; color: var(--text-dim);">Revenue: <span id="detail-today-revenue" style="color: var(--accent-pink); font-weight: 600;">₹0.00</span></div>
+            </div>
+            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 42, 117, 0.1); border-radius: 10px; padding: 15px; text-align: center;">
+              <h4 style="color: var(--rose-gold); margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase;">Last 7 Days</h4>
+              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Users: <span id="detail-7days-users" style="color: var(--text-main); font-weight: 600;">0</span></div>
+              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Purchases: <span id="detail-7days-purchases" style="color: var(--text-main); font-weight: 600;">0</span></div>
+              <div style="font-size: 12px; color: var(--text-dim);">Revenue: <span id="detail-7days-revenue" style="color: var(--accent-pink); font-weight: 600;">₹0.00</span></div>
+            </div>
+            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 42, 117, 0.1); border-radius: 10px; padding: 15px; text-align: center;">
+              <h4 style="color: var(--rose-gold); margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase;">Last 30 Days</h4>
+              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Users: <span id="detail-30days-users" style="color: var(--text-main); font-weight: 600;">0</span></div>
+              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Purchases: <span id="detail-30days-purchases" style="color: var(--text-main); font-weight: 600;">0</span></div>
+              <div style="font-size: 12px; color: var(--text-dim);">Revenue: <span id="detail-30days-revenue" style="color: var(--accent-pink); font-weight: 600;">₹0.00</span></div>
+            </div>
+            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 42, 117, 0.1); border-radius: 10px; padding: 15px; text-align: center;">
+              <h4 style="color: var(--rose-gold); margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase;">All Time</h4>
+              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Users: <span id="detail-alltime-users" style="color: var(--text-main); font-weight: 600;">0</span></div>
+              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Purchases: <span id="detail-alltime-purchases" style="color: var(--text-main); font-weight: 600;">0</span></div>
+              <div style="font-size: 12px; color: var(--text-dim);">Revenue: <span id="detail-alltime-revenue" style="color: var(--accent-pink); font-weight: 600;">₹0.00</span></div>
+            </div>
+          </div>
+
+          <div class="detail-tabs">
+            <button class="tab-btn active" onclick="switchTab('tab-conversions')">Conversions Audit Trail</button>
+            <button class="tab-btn" onclick="switchTab('tab-payouts')">Payout History & Payouts</button>
+            <button class="tab-btn" onclick="switchTab('tab-report')">Final Admin Report</button>
+          </div>
+
+          <!-- Conversions Tab -->
+          <div class="tab-panel active" id="tab-conversions">
+            <table style="font-size: 13px;">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Customer</th>
+                  <th>Referral Code</th>
+                  <th>Transaction ID</th>
+                  <th>Original Price</th>
+                  <th>Discount</th>
+                  <th>Amount Paid</th>
+                  <th>Commission</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="detail-conversions-body">
+                <tr>
+                  <td colspan="9" style="text-align: center; color: var(--text-dim);">No conversions found.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Payouts Tab -->
+          <div class="tab-panel" id="tab-payouts">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+              <h4 style="color: var(--text-main);">Payout List</h4>
+              <button onclick="openPayoutModal()" style="padding: 8px 16px; font-size: 12px;">Record Payout</button>
+            </div>
+            
+            <table style="font-size: 13px;">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Method</th>
+                  <th>Reference (UTR)</th>
+                  <th>Notes</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="detail-payouts-body">
+                <tr>
+                  <td colspan="7" style="text-align: center; color: var(--text-dim);">No payouts processed.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Report Tab -->
+          <div class="tab-panel" id="tab-report">
+            <div class="report-card" id="detail-report-body">
+              Generating report...
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUB-MODAL: RECORD PAYOUT -->
+  <div class="modal" id="modal-record-payout" style="z-index: 110;">
+    <div class="modal-content" style="max-width: 450px;">
+      <button class="modal-close" onclick="closeModal('modal-record-payout')">&times;</button>
+      <h2>Record Affiliate Payout</h2>
+      <p style="color: var(--text-dim); margin-bottom: 20px; font-size: 13px;">Generate a payout transaction record.</p>
+      
+      <form id="form-record-payout" onsubmit="submitRecordPayout(event)">
+        <input type="hidden" id="payout-affiliate-id">
+        <div class="form-group">
+          <label>Payout Amount (₹)</label>
+          <input type="number" id="payout-amount" required step="0.01" min="0.01" placeholder="e.g. 351.40">
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <input type="text" id="payout-notes" placeholder="e.g. Mid-month payouts">
+        </div>
+        <div style="text-align: right; margin-top: 20px;">
+          <button type="submit">Submit Payout</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SUB-MODAL: PROCESS PAYOUT PAY -->
+  <div class="modal" id="modal-complete-payout" style="z-index: 110;">
+    <div class="modal-content" style="max-width: 450px;">
+      <button class="modal-close" onclick="closeModal('modal-complete-payout')">&times;</button>
+      <h2>Mark Payout as Completed</h2>
+      <p style="color: var(--text-dim); margin-bottom: 20px; font-size: 13px;">Provide the payment reference details to mark as PAID.</p>
+      
+      <form id="form-complete-payout" onsubmit="submitCompletePayout(event)">
+        <input type="hidden" id="complete-payout-id">
+        <div class="form-group">
+          <label>Payment Method</label>
+          <select id="complete-payout-method" required>
+            <option value="UPI">UPI</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="PayPal">PayPal</option>
+            <option value="Cash">Cash</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Payment Reference / UTR Number</label>
+          <input type="text" id="complete-payout-reference" required placeholder="e.g. UTR_9921852063">
+        </div>
+        <div style="text-align: right; margin-top: 20px;">
+          <button type="submit">Mark as Paid</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let currentAffiliateId = null;
+
+    // Load initial data
+    window.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname);
+        return;
+      }
+      loadDashboardStats();
+      loadAffiliatePartners();
+      loadPromoCodes();
+    });
+
+    // Helper functions for headers
+    function getAuthHeaders() {
+      const token = localStorage.getItem("token");
+      return {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      };
+    }
+
+    // Helper functions for modals
+    function openModal(modalId) {
+      document.getElementById(modalId).style.display = 'flex';
+    }
+
+    function closeModal(modalId) {
+      document.getElementById(modalId).style.display = 'none';
+    }
+
+    function handleDateFilterChange() {
+      loadDashboardStats();
+      loadAffiliatePartners();
+    }
+
+    // Load stats
+    async function loadDashboardStats() {
+      try {
+        const range = document.getElementById('date-filter').value;
+        const response = await fetch(`/api/admin/affiliates/dashboard?range=${range}`, {
+          headers: getAuthHeaders()
+        });
+        if (response.status === 401 || response.status === 403) {
+          window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname);
+          return;
+        }
+        const stats = await response.json();
+        
+        document.getElementById('kpi-total-affiliates').textContent = stats.totalAffiliates || 0;
+        document.getElementById('kpi-total-clicks').textContent = (stats.totalClicks || 0).toLocaleString();
+        document.getElementById('kpi-total-code-uses').textContent = (stats.totalCodeUses || 0).toLocaleString();
+        document.getElementById('kpi-total-purchases').textContent = (stats.totalSuccessfulPurchases || 0).toLocaleString();
+        document.getElementById('kpi-total-revenue').textContent = `₹${(stats.totalRevenue || 0).toFixed(2)}`;
+        document.getElementById('kpi-total-earned').textContent = `₹${(stats.totalCommissionEarned || 0).toFixed(2)}`;
+        document.getElementById('kpi-total-paid').textContent = `₹${(stats.totalCommissionPaid || 0).toFixed(2)}`;
+        document.getElementById('kpi-total-pending').textContent = `₹${(stats.totalCommissionPending || 0).toFixed(2)}`;
+      } catch (err) {
+        console.error('Error fetching dashboard stats:', err);
+      }
+    }
+
+    // Load partners table
+    async function loadAffiliatePartners() {
+      try {
+        const range = document.getElementById('date-filter').value;
+        const response = await fetch(`/api/admin/affiliates?range=${range}`, {
+          headers: getAuthHeaders()
+        });
+        if (response.status === 401 || response.status === 403) {
+          return;
+        }
+        const partners = await response.json();
+        
+        const select = document.getElementById('add-promo-partner');
+        select.innerHTML = '<option value="">-- Select Partner --</option>';
+
+        const tbody = document.getElementById('partners-table-body');
+        tbody.innerHTML = '';
+
+        if (partners.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--text-dim);">No affiliate partners configured yet.</td></tr>';
+          return;
+        }
+
+        partners.forEach(partner => {
+          // Populate select drop-down
+          const option = document.createElement('option');
+          option.value = partner._id;
+          option.textContent = `${partner.name} (${partner.instagramUsername})`;
+          select.appendChild(option);
+
+          // Populate table row
+          const tr = document.createElement('tr');
+          tr.className = 'clickable';
+          tr.onclick = () => viewPartnerDetails(partner._id);
+
+          const codes = partner.codes && partner.codes.length > 0 ? partner.codes.join(', ') : '-';
+          
+          tr.innerHTML = `
+            <td>
+              <div style="font-weight: 600; color: var(--text-main);">${partner.name}</div>
+              <div style="font-size: 12px; color: var(--rose-gold);">${partner.instagramUsername}</div>
+            </td>
+            <td style="font-family: monospace; font-weight: 600;">${codes}</td>
+            <td>${(partner.totalClicks || 0).toLocaleString()}</td>
+            <td>${(partner.totalCodeUses || 0).toLocaleString()}</td>
+            <td>${(partner.totalSuccessfulPurchases || 0).toLocaleString()}</td>
+            <td style="font-weight: 500;">₹${(partner.totalRevenue || 0).toFixed(2)}</td>
+            <td>${partner.commissionPercent}%</td>
+            <td style="font-weight: 600;">₹${(partner.totalCommissionEarned || 0).toFixed(2)}</td>
+            <td style="color: var(--success-green);">₹${(partner.totalCommissionPaid || 0).toFixed(2)}</td>
+            <td style="color: var(--warning-yellow); font-weight: 600;">₹${(partner.totalCommissionPending || 0).toFixed(2)}</td>
+            <td><span class="status-badge ${partner.status}">${partner.status}</span></td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (err) {
+        console.error('Error fetching affiliate partners:', err);
+      }
+    }
+
+    // Load promo codes table
+    async function loadPromoCodes() {
+      try {
+        const response = await fetch('/api/admin/promocodes', {
+          headers: getAuthHeaders()
+        });
+        if (response.status === 401 || response.status === 403) {
+          return;
+        }
+        const promocodes = await response.json();
+
+        const tbody = document.getElementById('promocodes-table-body');
+        tbody.innerHTML = '';
+
+        if (promocodes.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-dim);">No promo codes created yet.</td></tr>';
+          return;
+        }
+
+        promocodes.forEach(pc => {
+          const tr = document.createElement('tr');
+          const ownerText = pc.partner 
+            ? `${pc.partner.name} (<span style="color: var(--rose-gold);">${pc.partner.instagramUsername}</span>)` 
+            : '<span style="color: var(--text-dim);">Unassigned</span>';
+
+          const createdDate = new Date(pc.createdAt).toLocaleDateString('en-IN', {
+            day: '2-digit', month: 'short', year: 'numeric'
+          });
+
+          const statusClass = pc.isActive ? 'active' : 'terminated';
+          const statusText = pc.isActive ? 'Active' : 'Inactive';
+          const actionButtonText = pc.isActive ? 'Deactivate' : 'Activate';
+
+          tr.innerHTML = `
+            <td style="font-family: monospace; font-weight: 700; color: var(--neon-cyan);">${pc.code}</td>
+            <td>${ownerText}</td>
+            <td>₹${pc.discount}</td>
+            <td>${pc.commissionPercent}%</td>
+            <td>${createdDate}</td>
+            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+            <td>
+              <button onclick="event.stopPropagation(); togglePromoCodeActive('${pc.code}', ${pc.isActive})" style="padding: 6px 12px; font-size: 11px; background: ${pc.isActive ? 'var(--danger-red)' : 'var(--success-green)'}; box-shadow: none;">
+                ${actionButtonText}
+              </button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (err) {
+        console.error('Error loading promo codes:', err);
+      }
+    }
+
+    // Toggle Promo Code Active state
+    async function togglePromoCodeActive(code, currentActive) {
+      if (!confirm(`Are you sure you want to ${currentActive ? 'deactivate' : 'activate'} the promo code ${code}?`)) {
+        return;
+      }
+      try {
+        const response = await fetch(`/api/admin/promocodes/${code}/toggle`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ isActive: !currentActive })
+        });
+        if (response.ok) {
+          alert(`Promo Code ${code} updated successfully!`);
+          loadPromoCodes();
+          loadAffiliatePartners();
+        } else {
+          const data = await response.json();
+          alert(`Error: ${data.error || 'Failed to toggle promo code status.'}`);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Server connection error.');
+      }
+    }
+
+    // Submit Add Affiliate Form
+    async function submitAddAffiliate(event) {
+      event.preventDefault();
+      
+      const payload = {
+        name: document.getElementById('add-affiliate-name').value,
+        email: document.getElementById('add-affiliate-email').value,
+        instagramUsername: document.getElementById('add-affiliate-username').value,
+        instagramUrl: document.getElementById('add-affiliate-url').value,
+        commissionPercent: Number(document.getElementById('add-affiliate-commission').value),
+        phone: document.getElementById('add-affiliate-phone').value || undefined,
+        userId: document.getElementById('add-affiliate-userId').value || undefined,
+        notes: document.getElementById('add-affiliate-notes').value || ""
+      };
+
+      try {
+        const response = await fetch('/api/admin/affiliates', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          alert('Affiliate partner created successfully!');
+          closeModal('modal-add-affiliate');
+          document.getElementById('form-add-affiliate').reset();
+          loadDashboardStats();
+          loadAffiliatePartners();
+        } else {
+          alert(`Error: ${data.error || 'Failed to create partner.'}`);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Server connection error.');
+      }
+    }
+
+    // Submit Add Promo Code Form
+    async function submitAddPromo(event) {
+      event.preventDefault();
+
+      const payload = {
+        code: document.getElementById('add-promo-code').value.toUpperCase().trim(),
+        discount: Number(document.getElementById('add-promo-discount').value),
+        affiliateId: document.getElementById('add-promo-partner').value,
+        commissionPercent: document.getElementById('add-promo-commission').value ? Number(document.getElementById('add-promo-commission').value) : undefined
+      };
+
+      try {
+        const response = await fetch('/api/admin/promocodes', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          alert('SUCCESS\n\n' + data.code + '\n→ Assigned to Selected Partner\n→ ₹' + data.discount + ' discount\n→ ' + data.commissionPercent + '% commission\n→ ACTIVE');
+          closeModal('modal-add-promo');
+          document.getElementById('form-add-promo').reset();
+          loadAffiliatePartners();
+          loadPromoCodes();
+        } else {
+          alert(`Error: ${data.error || 'Failed to create promo code.'}`);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Server connection error.');
+      }
+    }
+
+    // Submit Reverse Conversion Form
+    async function submitReverseConversion(event) {
+      event.preventDefault();
+      
+      const txId = document.getElementById('reverse-tx-id').value;
+      const reason = document.getElementById('reverse-reason').value;
+
+      try {
+        const response = await fetch(`/api/admin/conversions/${txId}/reverse`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ reason })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          alert('Commission reversed successfully!');
+          closeModal('modal-reverse');
+          document.getElementById('form-reverse').reset();
+          loadDashboardStats();
+          loadAffiliatePartners();
+          if (currentAffiliateId) {
+            viewPartnerDetails(currentAffiliateId);
+          }
+        } else {
+          alert(`Error: ${data.error || 'Failed to reverse commission.'}`);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Server connection error.');
+      }
+    }
+
+    // View Details Modal
+    async function viewPartnerDetails(partnerId) {
+      currentAffiliateId = partnerId;
+      openModal('modal-detail');
+      
+      // Default tab conversions
+      switchTab('tab-conversions');
+
+      try {
+        const response = await fetch(`/api/admin/affiliates/${partnerId}`, {
+          headers: getAuthHeaders()
+        });
+        const data = await response.json();
+        const { partner, codes, payouts, conversions, performanceSummary } = data;
+
+        // Set sidebar values
+        document.getElementById('detail-partner-name').textContent = partner.name;
+        document.getElementById('detail-partner-instagram').textContent = partner.instagramUsername;
+        document.getElementById('detail-partner-instagram').onclick = () => window.open(partner.instagramUrl, '_blank');
+        document.getElementById('detail-email').textContent = partner.email;
+        document.getElementById('detail-phone').textContent = partner.phone || '-';
+        document.getElementById('detail-commission-pct').textContent = `${partner.commissionPercent}%`;
+        document.getElementById('detail-codes-list').textContent = codes.length > 0 ? codes.join(', ') : 'None';
+        
+        const statusVal = document.getElementById('detail-status');
+        statusVal.innerHTML = `<span class="status-badge ${partner.status}">${partner.status}</span>`;
+        document.getElementById('detail-created-at').textContent = new Date(partner.createdAt).toLocaleDateString('en-IN', {
+          day: '2-digit', month: 'short', year: 'numeric'
+        });
+        document.getElementById('detail-notes').textContent = partner.notes || 'No extra notes.';
+
+        // Populate Period summaries
+        document.getElementById('detail-today-users').textContent = performanceSummary.today.users;
+        document.getElementById('detail-today-purchases').textContent = performanceSummary.today.purchases;
+        document.getElementById('detail-today-revenue').textContent = `₹${performanceSummary.today.revenue.toFixed(2)}`;
+
+        document.getElementById('detail-7days-users').textContent = performanceSummary.last7.users;
+        document.getElementById('detail-7days-purchases').textContent = performanceSummary.last7.purchases;
+        document.getElementById('detail-7days-revenue').textContent = `₹${performanceSummary.last7.revenue.toFixed(2)}`;
+
+        document.getElementById('detail-30days-users').textContent = performanceSummary.last30.users;
+        document.getElementById('detail-30days-purchases').textContent = performanceSummary.last30.purchases;
+        document.getElementById('detail-30days-revenue').textContent = `₹${performanceSummary.last30.revenue.toFixed(2)}`;
+
+        document.getElementById('detail-alltime-users').textContent = performanceSummary.allTime.users;
+        document.getElementById('detail-alltime-purchases').textContent = performanceSummary.allTime.purchases;
+        document.getElementById('detail-alltime-revenue').textContent = `₹${performanceSummary.allTime.revenue.toFixed(2)}`;
+
+        // Populate Conversions
+        const convBody = document.getElementById('detail-conversions-body');
+        convBody.innerHTML = '';
+        if (conversions.length === 0) {
+          convBody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-dim);">No conversion referral records found.</td></tr>';
+        } else {
+          conversions.forEach(c => {
+            const tr = document.createElement('tr');
+            
+            let badgeClass = 'active';
+            if (c.status === 'reversed') badgeClass = 'terminated';
+            if (c.status === 'pending') badgeClass = 'paused';
+            
+            const dateStr = new Date(c.createdAt).toLocaleDateString('en-IN', {
+              day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+            });
+
+            tr.innerHTML = `
+              <td>${dateStr}</td>
+              <td>
+                <div style="font-weight: 500;">${c.customer.username}</div>
+                <div style="font-size: 11px; color: var(--text-dim);">${c.customer.email}</div>
+              </td>
+              <td style="font-family: monospace; font-weight: 600;">${c.promoCode}</td>
+              <td style="font-family: monospace; font-size: 12px; color: var(--neon-cyan);">${c.transactionId}</td>
+              <td>₹${(c.originalAmount || 0).toFixed(2)}</td>
+              <td>₹${(c.discountAmount || 0).toFixed(2)}</td>
+              <td>₹${c.amountPaid.toFixed(2)}</td>
+              <td style="font-weight: 600; color: var(--rose-gold);">₹${c.commissionAmount.toFixed(2)}</td>
+              <td><span class="status-badge ${badgeClass}">${c.status}</span></td>
+            `;
+            convBody.appendChild(tr);
+          });
+        }
+
+        // Populate Payouts
+        const payoutBody = document.getElementById('detail-payouts-body');
+        payoutBody.innerHTML = '';
+        if (payouts.length === 0) {
+          payoutBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-dim);">No payouts recorded.</td></tr>';
+        } else {
+          payouts.forEach(p => {
+            const tr = document.createElement('tr');
+            const dateStr = new Date(p.createdAt).toLocaleDateString('en-IN', {
+              day: '2-digit', month: 'short', year: 'numeric'
+            });
+            const paidDateStr = p.paidAt ? new Date(p.paidAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '-';
+            
+            const isPending = p.status === 'pending';
+            const actionBtn = isPending 
+              ? `<button style="padding: 6px 12px; font-size: 11px;" onclick="openCompletePayoutModal('${p._id}')">Complete</button>`
+              : `<span style="font-size: 11px; color: var(--text-dim);">Paid on ${paidDateStr}</span>`;
+
+            tr.innerHTML = `
+              <td>${dateStr}</td>
+              <td style="font-weight: 600;">₹${p.amount.toFixed(2)}</td>
+              <td><span class="status-badge ${p.status === 'paid' ? 'active' : 'paused'}">${p.status}</span></td>
+              <td>${p.paymentMethod || '-'}</td>
+              <td style="font-family: monospace;">${p.paymentReference || '-'}</td>
+              <td>${p.notes || '-'}</td>
+              <td>${actionBtn}</td>
+            `;
+            payoutBody.appendChild(tr);
+          });
+        }
+
+        // Populate Final Report card
+        const report = `-----------------------------------------
+AFFILIATE REPORT
+-----------------------------------------
+
+Name:              ${partner.name}
+Instagram:         ${partner.instagramUsername}
+Code(s):           ${codes.length > 0 ? codes.join(', ') : 'None'}
+Commission Rate:   ${partner.commissionPercent}%
+Status:            ${partner.status.toUpperCase()}
+
+-----------------------------------------
+PERFORMANCE METRICS (ALL TIME)
+-----------------------------------------
+
+Clicks:                 ${partner.totalClicks.toLocaleString()}
+Unique Code Users:       ${performanceSummary.allTime.users.toLocaleString()}
+Successful Purchases:    ${performanceSummary.allTime.purchases.toLocaleString()}
+Conversion Rate:         ${partner.totalClicks > 0 ? ((performanceSummary.allTime.purchases / partner.totalClicks) * 100).toFixed(2) + '%' : '0.00%'}
+Revenue Generated:     ₹${performanceSummary.allTime.revenue.toFixed(2)}
+
+-----------------------------------------
+COMMISSION ACCOUNTING (ALL TIME)
+-----------------------------------------
+
+Earned Total:           ₹${partner.totalCommissionEarned.toFixed(2)}
+Paid Total:             ₹${partner.totalCommissionPaid.toFixed(2)}
+Pending Balance:        ₹${partner.totalCommissionPending.toFixed(2)}
+
+-----------------------------------------
+AUDITED CONVERSIONS
+-----------------------------------------
+${conversions.map((c, i) => {
+  const username = c.customer.username;
+  const statusStr = c.status.toUpperCase();
+  return `#${i + 1} | User: ${username.padEnd(10)} | Code: ${c.promoCode.padEnd(8)} | Paid: ₹${c.amountPaid.toFixed(2).padEnd(6)} | Comm: ₹${c.commissionAmount.toFixed(2).padEnd(6)} | [${statusStr}]`;
+}).join('\n')}
+
+-----------------------------------------
+PAYOUT HISTORY
+-----------------------------------------
+${payouts.map((p, i) => {
+  const paidAtStr = p.paidAt ? new Date(p.paidAt).toLocaleDateString('en-IN') : 'PENDING';
+  return `#${i + 1} | Amount: ₹${p.amount.toFixed(2).padEnd(8)} | Status: ${p.status.toUpperCase().padEnd(8)} | Method: ${(p.paymentMethod || '-').padEnd(8)} | Ref: ${p.paymentReference || '-'}`;
+}).join('\n')}
+`;
+
+        document.getElementById('detail-report-body').innerHTML = `<h3>FINAL PERFORMANCE AUDIT REPORT</h3>\n${report}`;
+
+      } catch (err) {
+        console.error('Error loading partner detail:', err);
+      }
+    }
+
+    // Switch tabs
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+      
+      const tabTarget = document.getElementById(tabId);
+      if (tabTarget) tabTarget.classList.add('active');
+
+      // Find matching button and mark active
+      const buttons = document.querySelectorAll('.tab-btn');
+      if (tabId === 'tab-conversions') buttons[0].classList.add('active');
+      if (tabId === 'tab-payouts') buttons[1].classList.add('active');
+      if (tabId === 'tab-report') buttons[2].classList.add('active');
+    }
+
+    // Open sub-modal payout
+    function openPayoutModal() {
+      document.getElementById('payout-affiliate-id').value = currentAffiliateId;
+      openModal('modal-record-payout');
+    }
+
+    // Submit Payout
+    async function submitRecordPayout(event) {
+      event.preventDefault();
+
+      const payload = {
+        affiliateId: document.getElementById('payout-affiliate-id').value,
+        amount: Number(document.getElementById('payout-amount').value),
+        notes: document.getElementById('payout-notes').value
+      };
+
+      try {
+        const response = await fetch('/api/admin/payouts', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          alert('Payout registered successfully!');
+          closeModal('modal-record-payout');
+          document.getElementById('form-record-payout').reset();
+          viewPartnerDetails(currentAffiliateId);
+          loadDashboardStats();
+          loadAffiliatePartners();
+        } else {
+          alert(`Error: ${data.error || 'Failed to create payout.'}`);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Server connection error.');
+      }
+    }
+
+    // Open Complete Payout Sub-Modal
+    function openCompletePayoutModal(payoutId) {
+      document.getElementById('complete-payout-id').value = payoutId;
+      openModal('modal-complete-payout');
+    }
+
+    // Submit Complete Payout (mark paid)
+    async function submitCompletePayout(event) {
+      event.preventDefault();
+
+      const payoutId = document.getElementById('complete-payout-id').value;
+      const payload = {
+        paymentMethod: document.getElementById('complete-payout-method').value,
+        paymentReference: document.getElementById('complete-payout-reference').value
+      };
+
+      try {
+        const response = await fetch(`/api/admin/payouts/${payoutId}/pay`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          alert('Payout marked as Paid!');
+          closeModal('modal-complete-payout');
+          document.getElementById('form-complete-payout').reset();
+          viewPartnerDetails(currentAffiliateId);
+          loadDashboardStats();
+          loadAffiliatePartners();
+        } else {
+          alert(`Error: ${data.error || 'Failed to update payout status.'}`);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Server connection error.');
+      }
+    }
+  </script>
+</body>
+</html>

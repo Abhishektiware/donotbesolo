@@ -38,6 +38,11 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Admin Affiliate Private Page Route
+app.get('/admin/affiliates', authenticateAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin-views', 'admin-affiliate.html'));
+});
+
 // STATIC ASSETS MIDDLEWARE (After dynamic HTML routes)
 app.use(express.static(path.join(__dirname, 'public')));
 // Ensure uploads folder exists in root (not in public for high security)
@@ -97,6 +102,7 @@ mongoose.connect(cloudMongoUri)
     console.log('Connected to MongoDB Cloud Database.');
     seedPromoCodes();
     seedStorePackages();
+    seedAdminUser();
   })
   .catch(err => {
     console.error('MongoDB Cloud connection authentication/network failure. Trying local MongoDB...');
@@ -106,6 +112,7 @@ mongoose.connect(cloudMongoUri)
           console.log('Connected successfully to local MongoDB instance (mongodb://127.0.0.1:27017/donotbesolo).');
           seedPromoCodes();
           seedStorePackages();
+          seedAdminUser();
         })
         .catch(localErr => {
           console.error('All MongoDB connection options failed. Database services are offline.', localErr.message);
@@ -218,6 +225,9 @@ const OTP = mongoose.model('OTP', otpSchema);
 const trafficLogSchema = new mongoose.Schema({
   refCode: { type: String, required: true },
   ip: { type: String },
+  affiliateId: { type: mongoose.Schema.Types.ObjectId, ref: 'AffiliatePartner', default: null },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  sessionId: { type: String, default: null },
   timestamp: { type: Date, default: Date.now }
 });
 const TrafficLog = mongoose.model('TrafficLog', trafficLogSchema);
@@ -230,7 +240,12 @@ const transactionSchema = new mongoose.Schema({
   type: { type: String, enum: ['subscription', 'coins', 'chat_deduction', 'media_unlock', 'image_generation', 'voice_note_generation'], required: true },
   coins: { type: Number, default: 0 },
   status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
-  timestamp: { type: Date, default: Date.now }
+  timestamp: { type: Date, default: Date.now },
+  affiliateId: { type: mongoose.Schema.Types.ObjectId, ref: 'AffiliatePartner', default: null },
+  affiliateCommissionId: { type: mongoose.Schema.Types.ObjectId, ref: 'AffiliateConversion', default: null },
+  originalAmount: { type: Number, default: 0 },
+  discountAmount: { type: Number, default: 0 },
+  commissionAmount: { type: Number, default: 0 }
 });
 const Transaction = mongoose.model('Transaction', transactionSchema);
 
@@ -251,9 +266,78 @@ const Media = mongoose.model('Media', mediaSchema);
 const promoCodeSchema = new mongoose.Schema({
   code: { type: String, required: true, unique: true },
   discount: { type: Number, required: true },
-  isActive: { type: Boolean, default: true }
+  isActive: { type: Boolean, default: true },
+  affiliateId: { type: mongoose.Schema.Types.ObjectId, ref: 'AffiliatePartner', default: null },
+  commissionPercent: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
 });
 const PromoCode = mongoose.model('PromoCode', promoCodeSchema);
+
+// 7. AffiliatePartner Schema
+const affiliatePartnerSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  instagramUsername: { type: String, required: true, unique: true },
+  instagramUrl: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  phone: { type: String, default: null },
+  commissionPercent: { type: Number, required: true, default: 0 },
+  status: { type: String, enum: ['active', 'paused', 'terminated'], default: 'active' },
+  notes: { type: String, default: "" },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  totalClicks: { type: Number, default: 0 },
+  totalCodeUses: { type: Number, default: 0 },
+  totalSuccessfulPurchases: { type: Number, default: 0 },
+  totalRevenue: { type: Number, default: 0 },
+  totalCommissionEarned: { type: Number, default: 0 },
+  totalCommissionPaid: { type: Number, default: 0 },
+  totalCommissionPending: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+const AffiliatePartner = mongoose.model('AffiliatePartner', affiliatePartnerSchema);
+
+// 8. AffiliateCodeUse Schema
+const affiliateCodeUseSchema = new mongoose.Schema({
+  affiliateId: { type: mongoose.Schema.Types.ObjectId, ref: 'AffiliatePartner', required: true },
+  promoCode: { type: String, required: true },
+  customerUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  timestamp: { type: Date, default: Date.now }
+});
+const AffiliateCodeUse = mongoose.model('AffiliateCodeUse', affiliateCodeUseSchema);
+
+// 9. AffiliateConversion Schema
+const affiliateConversionSchema = new mongoose.Schema({
+  affiliateId: { type: mongoose.Schema.Types.ObjectId, ref: 'AffiliatePartner', required: true },
+  promoCode: { type: String, required: true },
+  customerUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  transactionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Transaction', required: true, unique: true },
+  paymentId: { type: String, default: null },
+  originalAmount: { type: Number, required: true },
+  discountAmount: { type: Number, required: true },
+  amountPaid: { type: Number, required: true },
+  commissionPercent: { type: Number, required: true },
+  commissionAmount: { type: Number, required: true },
+  status: { type: String, enum: ['earned', 'pending', 'paid', 'reversed'], default: 'earned' },
+  createdAt: { type: Date, default: Date.now },
+  paidAt: { type: Date, default: null },
+  reversedAt: { type: Date, default: null },
+  reversalReason: { type: String, default: null }
+});
+const AffiliateConversion = mongoose.model('AffiliateConversion', affiliateConversionSchema);
+
+// 10. AffiliatePayout Schema
+const affiliatePayoutSchema = new mongoose.Schema({
+  affiliateId: { type: mongoose.Schema.Types.ObjectId, ref: 'AffiliatePartner', required: true },
+  amount: { type: Number, required: true },
+  status: { type: String, enum: ['pending', 'paid'], default: 'pending' },
+  paymentMethod: { type: String, default: null },
+  paymentReference: { type: String, default: null },
+  notes: { type: String, default: "" },
+  createdAt: { type: Date, default: Date.now },
+  paidAt: { type: Date, default: null }
+});
+const AffiliatePayout = mongoose.model('AffiliatePayout', affiliatePayoutSchema);
 
 // StorePackage Schema
 const storePackageSchema = new mongoose.Schema({
@@ -310,6 +394,39 @@ async function seedStorePackages() {
   }
 }
 
+// Admin User Seeder
+async function seedAdminUser() {
+  const User = mongoose.model('User');
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@donotbesolo.com';
+  const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+
+  try {
+    const existingAdmin = await User.findOne({
+      $or: [{ email: adminEmail }, { username: adminUsername }]
+    });
+
+    if (!existingAdmin) {
+      const hashedPassword = await bcrypt.hash(adminPassword, 10);
+      await User.create({
+        fullname: 'System Admin',
+        username: adminUsername,
+        email: adminEmail,
+        password: hashedPassword,
+        emailVerified: true,
+        credits: 9999,
+        coins: 9999,
+        isSubscriptionActive: true
+      });
+      console.log(`[Admin Seed]: Admin user auto-created (${adminUsername} / ${adminEmail}).`);
+    } else {
+      console.log(`[Admin Seed]: Admin user already exists.`);
+    }
+  } catch (err) {
+    console.error('[Admin Seed Error]:', err);
+  }
+}
+
 // -------------------------------------------------------------
 // Security Middleware & Helpers
 // -------------------------------------------------------------
@@ -329,6 +446,105 @@ function authenticateToken(req, res, next) {
     req.user = user;
     next();
   });
+}
+
+// Admin Authentication Middleware
+async function authenticateAdmin(req, res, next) {
+  let token = null;
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  }
+  if (!token && req.headers.cookie) {
+    const cookies = req.headers.cookie.split(';').reduce((acc, c) => {
+      const [k, v] = c.trim().split('=');
+      acc[k] = v;
+      return acc;
+    }, {});
+    token = cookies['token'];
+  }
+  if (!token && req.query.token) {
+    token = req.query.token;
+  }
+
+  if (!token) {
+    if (req.path.startsWith('/api/')) {
+      return res.status(401).json({ error: 'Admin access token required.' });
+    } else {
+      return res.redirect('/login.html?redirect=' + encodeURIComponent(req.originalUrl));
+    }
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const User = mongoose.model('User');
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      if (req.path.startsWith('/api/')) {
+        return res.status(403).json({ error: 'User profile not found.' });
+      } else {
+        return res.redirect('/login.html');
+      }
+    }
+
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@donotbesolo.com';
+    const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+
+    const isEmailAdmin = user.email && adminEmail && user.email.toLowerCase().trim() === adminEmail.toLowerCase().trim();
+    const isUsernameAdmin = user.username && adminUsername && user.username.toLowerCase().trim() === adminUsername.toLowerCase().trim();
+
+    if (!isEmailAdmin && !isUsernameAdmin) {
+      if (req.path.startsWith('/api/')) {
+        return res.status(403).json({ error: 'Admin privileges required.' });
+      } else {
+        return res.status(403).send('Forbidden: Admin access only.');
+      }
+    }
+
+    req.user = decoded;
+    next();
+  } catch (err) {
+    if (req.path.startsWith('/api/')) {
+      return res.status(403).json({ error: 'Invalid or expired admin token.' });
+    } else {
+      return res.redirect('/login.html');
+    }
+  }
+}
+
+// Date Filter Query Helper
+function getDateFilterQuery(range, dateField = 'createdAt') {
+  const now = new Date();
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+
+  let matchQuery = {};
+
+  if (range === 'today') {
+    matchQuery[dateField] = { $gte: start, $lte: now };
+  } else if (range === 'yesterday') {
+    const yesterdayStart = new Date(start);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    const yesterdayEnd = new Date(start);
+    yesterdayEnd.setMilliseconds(-1);
+    matchQuery[dateField] = { $gte: yesterdayStart, $lte: yesterdayEnd };
+  } else if (range === '7days') {
+    const sevenDaysAgo = new Date(start);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    matchQuery[dateField] = { $gte: sevenDaysAgo, $lte: now };
+  } else if (range === '30days') {
+    const thirtyDaysAgo = new Date(start);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
+    matchQuery[dateField] = { $gte: thirtyDaysAgo, $lte: now };
+  } else if (range === 'thismonth') {
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    matchQuery[dateField] = { $gte: firstDayOfMonth, $lte: now };
+  } else {
+    // all time
+    matchQuery = {};
+  }
+
+  return matchQuery;
 }
 
 // Background cleanup routine for expired physical media files (runs hourly)
@@ -687,6 +903,8 @@ app.post('/api/login', async (req, res) => {
       username: user.username
     });
 
+    res.setHeader('Set-Cookie', `token=${token}; Path=/; Max-Age=${7 * 24 * 60 * 60}; SameSite=Lax`);
+
     res.status(200).json({
       success: true,
       token,
@@ -730,6 +948,8 @@ app.post('/api/login', async (req, res) => {
     mixpanelService.track('User Logged In', user._id, {
       username: user.username
     });
+
+    res.setHeader('Set-Cookie', `token=${token}; Path=/; Max-Age=${7 * 24 * 60 * 60}; SameSite=Lax`);
 
     res.status(200).json({
       success: true,
@@ -1555,8 +1775,148 @@ app.get('/api/media/:mediaId', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// Payments & Referrals Integration (UroPay + Traffic Logs)
-// -------------------------------------------------------------
+// Helper to process affiliate conversion on successful payment
+async function processAffiliateConversion(tx) {
+  if (!tx.refCode) return;
+
+  try {
+    const promo = await PromoCode.findOne({ code: tx.refCode.toUpperCase().trim() });
+    if (!promo || !promo.affiliateId) {
+      console.log(`[Affiliate] No partner associated with promo code: ${tx.refCode}`);
+      return;
+    }
+
+    // Check if conversion already exists for this transaction
+    const existingConversion = await AffiliateConversion.findOne({ transactionId: tx._id });
+    if (existingConversion) {
+      console.log(`[Affiliate] Conversion already exists for transaction ${tx._id}`);
+      return;
+    }
+
+    const affiliate = await AffiliatePartner.findById(promo.affiliateId);
+    if (!affiliate) {
+      console.log(`[Affiliate] Partner not found for ID: ${promo.affiliateId}`);
+      return;
+    }
+
+    // Self-referral check: reject if affiliate user email or ID matches customer details
+    const customerUser = await User.findById(tx.userId);
+    if (customerUser && (
+      (affiliate.email && customerUser.email && affiliate.email.toLowerCase().trim() === customerUser.email.toLowerCase().trim()) ||
+      (affiliate.userId && affiliate.userId.toString() === tx.userId.toString())
+    )) {
+      console.log(`[Affiliate] Self-referral detected for User ${tx.userId}. Skipping commission generation.`);
+      return;
+    }
+
+    const originalAmount = tx.originalAmount || (tx.amount + (tx.discountAmount || promo.discount || 0));
+    const discountAmount = tx.discountAmount || promo.discount || 0;
+    const amountPaid = tx.amount;
+    const commissionPercent = promo.commissionPercent || affiliate.commissionPercent || 0;
+    const commissionAmount = Math.round((amountPaid * (commissionPercent / 100)) * 100) / 100;
+
+    // Create the AffiliateConversion document
+    const conversion = await AffiliateConversion.create({
+      affiliateId: affiliate._id,
+      promoCode: promo.code,
+      customerUserId: tx.userId,
+      transactionId: tx._id,
+      paymentId: tx._id.toString(), // map transactionId as paymentId
+      originalAmount,
+      discountAmount,
+      amountPaid,
+      commissionPercent,
+      commissionAmount,
+      status: 'earned'
+    });
+
+    // Update Transaction trace info
+    tx.affiliateId = affiliate._id;
+    tx.affiliateCommissionId = conversion._id;
+    tx.commissionAmount = commissionAmount;
+    await tx.save();
+
+    // Increment partner metrics
+    affiliate.totalSuccessfulPurchases += 1;
+    affiliate.totalRevenue += amountPaid;
+    affiliate.totalCommissionEarned += commissionAmount;
+    affiliate.totalCommissionPending += commissionAmount;
+    affiliate.updatedAt = new Date();
+    await affiliate.save();
+
+    // Track Mixpanel event
+    mixpanelService.track('Affiliate Commission Earned', tx.userId, {
+      affiliate_id: affiliate._id.toString(),
+      affiliate_instagram: affiliate.instagramUsername,
+      promo_code: promo.code,
+      transaction_id: tx._id.toString(),
+      amount: amountPaid,
+      commission_amount: commissionAmount
+    });
+
+    console.log(`[Affiliate] Commission of ₹${commissionAmount} generated for ${affiliate.name} (Code: ${promo.code}) from Transaction ${tx._id}`);
+
+  } catch (err) {
+    console.error('[Affiliate Conversion Process Error]:', err);
+  }
+}
+
+// Helper to reverse an affiliate conversion (e.g., on refund)
+async function reverseAffiliateConversion(transactionId, reason = 'Refunded') {
+  try {
+    const conversion = await AffiliateConversion.findOne({ transactionId });
+    if (!conversion) {
+      console.log(`[Affiliate] No conversion found to reverse for transaction: ${transactionId}`);
+      return;
+    }
+
+    if (conversion.status === 'reversed') {
+      console.log(`[Affiliate] Conversion already reversed for transaction: ${transactionId}`);
+      return;
+    }
+
+    const previousStatus = conversion.status;
+    conversion.status = 'reversed';
+    conversion.reversedAt = new Date();
+    conversion.reversalReason = reason;
+    await conversion.save();
+
+    const affiliate = await AffiliatePartner.findById(conversion.affiliateId);
+    if (affiliate) {
+      affiliate.totalSuccessfulPurchases = Math.max(0, affiliate.totalSuccessfulPurchases - 1);
+      affiliate.totalRevenue = Math.max(0, affiliate.totalRevenue - conversion.amountPaid);
+      affiliate.totalCommissionEarned = Math.max(0, affiliate.totalCommissionEarned - conversion.commissionAmount);
+
+      if (previousStatus === 'paid') {
+        affiliate.totalCommissionPaid = Math.max(0, affiliate.totalCommissionPaid - conversion.commissionAmount);
+      } else {
+        affiliate.totalCommissionPending = Math.max(0, affiliate.totalCommissionPending - conversion.commissionAmount);
+      }
+      affiliate.updatedAt = new Date();
+      await affiliate.save();
+    }
+
+    // Update Transaction
+    await Transaction.findByIdAndUpdate(transactionId, {
+      status: 'failed'
+    });
+
+    // Track Mixpanel event
+    mixpanelService.track('Affiliate Commission Reversed', conversion.customerUserId, {
+      affiliate_id: conversion.affiliateId.toString(),
+      promo_code: conversion.promoCode,
+      transaction_id: transactionId.toString(),
+      amount: conversion.amountPaid,
+      commission_amount: conversion.commissionAmount,
+      reason
+    });
+
+    console.log(`[Affiliate] Commission of ₹${conversion.commissionAmount} reversed for partner ${affiliate ? affiliate.name : conversion.affiliateId} (Reason: ${reason})`);
+
+  } catch (err) {
+    console.error('[Affiliate Conversion Reversal Error]:', err);
+  }
+}
 
 // GET /api/store/packages
 app.get('/api/store/packages', async (req, res) => {
@@ -1573,16 +1933,72 @@ app.get('/api/store/packages', async (req, res) => {
 // POST /api/payment/validate-referral
 app.post('/api/payment/validate-referral', authenticateToken, async (req, res) => {
   const { refCode } = req.body;
+  const customerUserId = req.user.userId;
+  const originalPrice = 110;
+
   if (!refCode) {
     return res.status(400).json({ valid: false, message: 'Referral code is required.' });
   }
+
   try {
     const promo = await PromoCode.findOne({ code: refCode.toUpperCase().trim(), isActive: true });
-    if (promo) {
-      res.status(200).json({ valid: true, discount: promo.discount });
-    } else {
-      res.status(200).json({ valid: false, discount: 0, message: 'Invalid referral code.' });
+    if (!promo) {
+      return res.status(200).json({ valid: false, discount: 0, message: 'Invalid referral code.' });
     }
+
+    let affiliate = null;
+    if (promo.affiliateId) {
+      affiliate = await AffiliatePartner.findById(promo.affiliateId);
+      if (!affiliate || affiliate.status !== 'active') {
+        return res.status(200).json({ valid: false, discount: 0, message: 'Referral code is currently inactive.' });
+      }
+
+      // Self-referral protection
+      const customerUser = await User.findById(customerUserId);
+      if (customerUser && (
+        (affiliate.email && customerUser.email && affiliate.email.toLowerCase().trim() === customerUser.email.toLowerCase().trim()) ||
+        (affiliate.userId && affiliate.userId.toString() === customerUserId.toString())
+      )) {
+        return res.status(200).json({ valid: false, discount: 0, message: 'Self-referral is not permitted.' });
+      }
+
+      // Check if this user has already used this code
+      const existingUse = await AffiliateCodeUse.findOne({
+        affiliateId: affiliate._id,
+        customerUserId,
+        promoCode: promo.code
+      });
+
+      if (!existingUse) {
+        // Track code application/use
+        await AffiliateCodeUse.create({
+          affiliateId: affiliate._id,
+          promoCode: promo.code,
+          customerUserId: customerUserId
+        });
+
+        // Increment partner code usage count
+        await AffiliatePartner.findByIdAndUpdate(affiliate._id, { $inc: { totalCodeUses: 1 } });
+      }
+
+      // Track Mixpanel event
+      mixpanelService.track('Affiliate Code Applied', customerUserId, {
+        affiliate_id: affiliate._id.toString(),
+        affiliate_instagram: affiliate.instagramUsername,
+        promo_code: promo.code
+      });
+    }
+
+    const discountPrice = Math.max(0, originalPrice - promo.discount);
+    res.status(200).json({
+      valid: true,
+      code: promo.code,
+      affiliateId: affiliate ? affiliate._id : null,
+      instagramUsername: affiliate ? affiliate.instagramUsername : null,
+      discount: promo.discount,
+      discountPrice: discountPrice,
+      finalPrice: discountPrice
+    });
   } catch (err) {
     console.error('[Promo Validate Error]:', err);
     res.status(500).json({ error: 'Server error during promo code validation.' });
@@ -1608,19 +2024,75 @@ app.get('/api/subscription/status', authenticateToken, async (req, res) => {
 // POST /api/check-referral
 app.post('/api/check-referral', authenticateToken, async (req, res) => {
   const { refCode } = req.body;
+  const customerUserId = req.user.userId;
+  const originalPrice = 110;
+
   if (!refCode) {
-    return res.status(200).json({ valid: false, discountPrice: 110 });
+    return res.status(200).json({ valid: false, discountPrice: originalPrice });
   }
+
   try {
     const promo = await PromoCode.findOne({ code: refCode.toUpperCase().trim(), isActive: true });
-    if (promo) {
-      return res.status(200).json({ valid: true, discountPrice: 99 });
-    } else {
-      return res.status(200).json({ valid: false, discountPrice: 110 });
+    if (!promo) {
+      return res.status(200).json({ valid: false, discountPrice: originalPrice, message: 'Invalid referral code.' });
     }
+
+    let affiliate = null;
+    if (promo.affiliateId) {
+      affiliate = await AffiliatePartner.findById(promo.affiliateId);
+      if (!affiliate || affiliate.status !== 'active') {
+        return res.status(200).json({ valid: false, discountPrice: originalPrice, message: 'Referral code is currently inactive.' });
+      }
+
+      // Self-referral protection
+      const customerUser = await User.findById(customerUserId);
+      if (customerUser && (
+        (affiliate.email && customerUser.email && affiliate.email.toLowerCase().trim() === customerUser.email.toLowerCase().trim()) ||
+        (affiliate.userId && affiliate.userId.toString() === customerUserId.toString())
+      )) {
+        return res.status(200).json({ valid: false, discountPrice: originalPrice, message: 'Self-referral is not permitted.' });
+      }
+
+      // Check if this user has already used this code
+      const existingUse = await AffiliateCodeUse.findOne({
+        affiliateId: affiliate._id,
+        customerUserId,
+        promoCode: promo.code
+      });
+
+      if (!existingUse) {
+        // Track code application/use
+        await AffiliateCodeUse.create({
+          affiliateId: affiliate._id,
+          promoCode: promo.code,
+          customerUserId: customerUserId
+        });
+
+        // Increment partner code usage count
+        await AffiliatePartner.findByIdAndUpdate(affiliate._id, { $inc: { totalCodeUses: 1 } });
+      }
+
+      // Track Mixpanel event
+      mixpanelService.track('Affiliate Code Applied', customerUserId, {
+        affiliate_id: affiliate._id.toString(),
+        affiliate_instagram: affiliate.instagramUsername,
+        promo_code: promo.code
+      });
+    }
+
+    const discountPrice = Math.max(0, originalPrice - promo.discount);
+    return res.status(200).json({
+      valid: true,
+      code: promo.code,
+      affiliateId: affiliate ? affiliate._id : null,
+      instagramUsername: affiliate ? affiliate.instagramUsername : null,
+      discount: promo.discount,
+      discountPrice: discountPrice,
+      finalPrice: discountPrice
+    });
   } catch (err) {
     console.error('[Promo Validate Error]:', err);
-    return res.status(200).json({ valid: false, discountPrice: 110 });
+    return res.status(200).json({ valid: false, discountPrice: originalPrice });
   }
 });
 
@@ -1653,8 +2125,34 @@ app.post('/api/payment/create-order', authenticateToken, async (req, res) => {
     }
 
     // 1. Discount/promo code validation against DB
-    const promo = refCode ? await PromoCode.findOne({ code: refCode.toUpperCase().trim(), isActive: true }) : null;
-    const amount = promo ? 99 : 110;
+    let promo = null;
+    let affiliate = null;
+    let discountAmount = 0;
+    
+    if (refCode) {
+      promo = await PromoCode.findOne({ code: refCode.toUpperCase().trim(), isActive: true });
+      if (promo && promo.affiliateId) {
+        affiliate = await AffiliatePartner.findById(promo.affiliateId);
+        if (affiliate) {
+          // Self-referral protection
+          if (
+            (affiliate.email && user.email && affiliate.email.toLowerCase().trim() === user.email.toLowerCase().trim()) ||
+            (affiliate.userId && affiliate.userId.toString() === userId.toString())
+          ) {
+            return res.status(400).json({ error: 'Self-referral is not permitted with this promo code.' });
+          }
+          if (affiliate.status !== 'active') {
+            return res.status(400).json({ error: 'Promo code is currently inactive.' });
+          }
+        }
+      }
+      if (promo) {
+        discountAmount = promo.discount;
+      }
+    }
+
+    const originalAmount = pack.price;
+    const amount = Math.max(0, originalAmount - discountAmount);
     const buttonId = promo ? 'NOVEMBER206527' : 'UNIFORM888325';
     const coinsToCredit = 100; // base pass gives 100 coins initially!
 
@@ -1673,8 +2171,17 @@ app.post('/api/payment/create-order', authenticateToken, async (req, res) => {
         amount,
         type: 'subscription',
         coins: coinsToCredit,
-        status: 'pending'
+        status: 'pending',
+        affiliateId: affiliate ? affiliate._id : null,
+        originalAmount,
+        discountAmount
       });
+    } else {
+      transaction.refCode = promo ? promo.code : null;
+      transaction.affiliateId = affiliate ? affiliate._id : null;
+      transaction.originalAmount = originalAmount;
+      transaction.discountAmount = discountAmount;
+      await transaction.save();
     }
 
     const callbackUrl = `http://localhost:${PORT}/api/payment/callback?transactionId=${transaction._id}`;
@@ -1686,11 +2193,22 @@ app.post('/api/payment/create-order', authenticateToken, async (req, res) => {
 
     console.log(`[UroPay Order Generated] Transaction: ${transaction._id} | Amount: ₹${amount} | Button: ${buttonId}`);
 
-    mixpanelService.track('Payment Started', userId, {
-      transaction_id: transaction._id,
-      amount: amount,
-      promo_code: promo ? promo.code : null
-    });
+    // Track Mixpanel event
+    if (affiliate) {
+      mixpanelService.track('Affiliate Payment Started', userId, {
+        affiliate_id: affiliate._id.toString(),
+        affiliate_instagram: affiliate.instagramUsername,
+        promo_code: promo.code,
+        transaction_id: transaction._id.toString(),
+        amount: amount
+      });
+    } else {
+      mixpanelService.track('Payment Started', userId, {
+        transaction_id: transaction._id,
+        amount: amount,
+        promo_code: promo ? promo.code : null
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -1785,6 +2303,9 @@ app.get('/api/payment/callback', async (req, res) => {
         tx.status = 'completed';
         await tx.save();
 
+        // Process affiliate tracking commission
+        await processAffiliateConversion(tx);
+
         if (tx.type === 'subscription') {
           user.paymentStatus = 'paid';
           user.isSubscriptionActive = true;
@@ -1800,6 +2321,16 @@ app.get('/api/payment/callback', async (req, res) => {
           amount: tx.amount,
           promo_code: tx.refCode
         });
+
+        if (tx.affiliateId) {
+          mixpanelService.track('Affiliate Payment Successful', user._id, {
+            affiliate_id: tx.affiliateId.toString(),
+            promo_code: tx.refCode,
+            transaction_id: tx._id.toString(),
+            amount: tx.amount
+          });
+        }
+
         mixpanelService.track('Coins Purchased', user._id, {
           amount: tx.coins,
           transaction_id: tx._id,
@@ -1970,6 +2501,9 @@ app.post('/api/payment/webhook', async (req, res) => {
       tx.status = 'completed';
       await tx.save();
 
+      // Process affiliate tracking commission
+      await processAffiliateConversion(tx);
+
       const user = await User.findById(tx.userId);
       if (user) {
         user.paymentStatus = 'paid';
@@ -1985,6 +2519,16 @@ app.post('/api/payment/webhook', async (req, res) => {
           amount: tx.amount,
           promo_code: tx.refCode
         });
+
+        if (tx.affiliateId) {
+          mixpanelService.track('Affiliate Payment Successful', user._id, {
+            affiliate_id: tx.affiliateId.toString(),
+            promo_code: tx.refCode,
+            transaction_id: tx._id.toString(),
+            amount: tx.amount
+          });
+        }
+
         mixpanelService.track('Coins Purchased', user._id, {
           amount: tx.coins,
           transaction_id: tx._id,
@@ -2024,22 +2568,435 @@ app.post('/api/logout', authenticateToken, async (req, res) => {
 
 // POST /api/track-click
 app.post('/api/track-click', async (req, res) => {
-  const { refCode } = req.body;
+  const { refCode, sessionId } = req.body;
   if (!refCode) {
     return res.status(400).json({ error: 'Referral tracking code is required.' });
   }
 
   try {
+    const promo = await PromoCode.findOne({ code: refCode.toUpperCase().trim() });
+    const affiliateId = promo ? promo.affiliateId : null;
+
+    let userId = null;
+    const authHeader = req.headers['authorization'];
+    if (authHeader && authHeader.split(' ')[1]) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, JWT_SECRET);
+        userId = decoded.userId;
+      } catch (err) {
+        // ignore invalid token for tracking
+      }
+    }
+
     await TrafficLog.create({
-      refCode,
-      ip: req.ip || req.headers['x-forwarded-for']
+      refCode: refCode.toUpperCase().trim(),
+      ip: req.ip || req.headers['x-forwarded-for'],
+      affiliateId,
+      userId,
+      sessionId: sessionId || null
     });
-    res.status(200).json({ success: true, message: 'Click tracked.' });
+
+    if (affiliateId) {
+      await AffiliatePartner.findByIdAndUpdate(affiliateId, { $inc: { totalClicks: 1 } });
+    }
+
+    res.status(200).json({ success: true, message: 'Click tracked.', affiliateId });
   } catch (err) {
     console.error('[Track click error]:', err);
     res.status(500).json({ error: 'Failed to record referral click.' });
   }
 });
+
+// -------------------------------------------------------------
+// Admin Affiliate Tracking API Endpoints
+// -------------------------------------------------------------
+
+// GET /api/admin/affiliates/dashboard
+app.get('/api/admin/affiliates/dashboard', authenticateAdmin, async (req, res) => {
+  const { range } = req.query;
+
+  try {
+    const totalAffiliates = await AffiliatePartner.countDocuments();
+
+    // 1. Get click stats
+    const clickQuery = getDateFilterQuery(range, 'timestamp');
+    const totalClicks = await TrafficLog.countDocuments({ ...clickQuery, affiliateId: { $ne: null } });
+
+    // 2. Get code application stats
+    const codeUseQuery = getDateFilterQuery(range, 'timestamp');
+    const totalCodeUses = await AffiliateCodeUse.countDocuments(codeUseQuery);
+
+    // 3. Get conversion statistics
+    const conversionQuery = getDateFilterQuery(range, 'createdAt');
+    
+    const activeConversions = await AffiliateConversion.find({
+      ...conversionQuery,
+      status: { $ne: 'reversed' }
+    });
+
+    const paidConversions = await AffiliateConversion.find({
+      ...conversionQuery,
+      status: 'paid'
+    });
+
+    const pendingConversions = await AffiliateConversion.find({
+      ...conversionQuery,
+      status: { $in: ['earned', 'pending'] }
+    });
+
+    const totalSuccessfulPurchases = activeConversions.length;
+    const totalRevenue = activeConversions.reduce((sum, c) => sum + c.amountPaid, 0);
+    const totalCommissionEarned = activeConversions.reduce((sum, c) => sum + c.commissionAmount, 0);
+    const totalCommissionPaid = paidConversions.reduce((sum, c) => sum + c.commissionAmount, 0);
+    const totalCommissionPending = pendingConversions.reduce((sum, c) => sum + c.commissionAmount, 0);
+
+    res.status(200).json({
+      totalAffiliates,
+      totalClicks,
+      totalCodeUses,
+      totalSuccessfulPurchases,
+      totalRevenue,
+      totalCommissionEarned,
+      totalCommissionPaid,
+      totalCommissionPending
+    });
+  } catch (err) {
+    console.error('[Admin Dashboard Stats Error]:', err);
+    res.status(500).json({ error: 'Failed to retrieve admin affiliate dashboard stats.' });
+  }
+});
+
+// GET /api/admin/affiliates
+app.get('/api/admin/affiliates', authenticateAdmin, async (req, res) => {
+  const { range } = req.query;
+
+  try {
+    const partners = await AffiliatePartner.find({}).sort({ createdAt: -1 }).lean();
+    const resultPartners = [];
+
+    for (const partner of partners) {
+      const codes = await PromoCode.find({ affiliateId: partner._id });
+      const codeNames = codes.map(c => c.code);
+
+      // Clicks/Visitors
+      const clickQuery = getDateFilterQuery(range, 'timestamp');
+      const clicks = await TrafficLog.countDocuments({
+        ...clickQuery,
+        affiliateId: partner._id
+      });
+
+      // Unique Code Users
+      const codeUseQuery = getDateFilterQuery(range, 'timestamp');
+      const uniqueUsersList = await AffiliateCodeUse.distinct('customerUserId', {
+        ...codeUseQuery,
+        affiliateId: partner._id
+      });
+      const uniqueCodeUsers = uniqueUsersList.length;
+
+      // Conversions
+      const conversionQuery = getDateFilterQuery(range, 'createdAt');
+      const partnerConversions = await AffiliateConversion.find({
+        ...conversionQuery,
+        affiliateId: partner._id,
+        status: { $ne: 'reversed' }
+      });
+
+      const partnerPaidConversions = await AffiliateConversion.find({
+        ...conversionQuery,
+        affiliateId: partner._id,
+        status: 'paid'
+      });
+
+      const partnerPendingConversions = await AffiliateConversion.find({
+        ...conversionQuery,
+        affiliateId: partner._id,
+        status: { $in: ['earned', 'pending'] }
+      });
+
+      const successfulPurchases = partnerConversions.length;
+      const revenue = partnerConversions.reduce((sum, c) => sum + c.amountPaid, 0);
+      const commissionEarned = partnerConversions.reduce((sum, c) => sum + c.commissionAmount, 0);
+      const commissionPaid = partnerPaidConversions.reduce((sum, c) => sum + c.commissionAmount, 0);
+      const commissionPending = partnerPendingConversions.reduce((sum, c) => sum + c.commissionAmount, 0);
+
+      resultPartners.push({
+        ...partner,
+        codes: codeNames,
+        totalClicks: clicks,
+        totalCodeUses: uniqueCodeUsers,
+        totalSuccessfulPurchases: successfulPurchases,
+        totalRevenue: revenue,
+        totalCommissionEarned: commissionEarned,
+        totalCommissionPaid: commissionPaid,
+        totalCommissionPending: commissionPending
+      });
+    }
+
+    res.status(200).json(resultPartners);
+  } catch (err) {
+    console.error('[Admin Get Affiliates Error]:', err);
+    res.status(500).json({ error: 'Failed to retrieve affiliate partners.' });
+  }
+});
+
+// POST /api/admin/affiliates
+app.post('/api/admin/affiliates', authenticateAdmin, async (req, res) => {
+  const { name, instagramUsername, instagramUrl, email, phone, commissionPercent, status, notes, userId } = req.body;
+  if (!name || !instagramUsername || !instagramUrl || !email) {
+    return res.status(400).json({ error: 'Name, Instagram Username, Instagram URL, and Email are required.' });
+  }
+
+  try {
+    const partner = await AffiliatePartner.create({
+      name,
+      instagramUsername,
+      instagramUrl,
+      email,
+      phone: phone || null,
+      commissionPercent: commissionPercent || 0,
+      status: status || 'active',
+      notes: notes || "",
+      userId: userId || null
+    });
+    res.status(201).json(partner);
+  } catch (err) {
+    console.error('[Admin Create Affiliate Error]:', err);
+    if (err.code === 11000) {
+      return res.status(400).json({ error: 'An affiliate with this email or Instagram username already exists.' });
+    }
+    res.status(500).json({ error: 'Failed to create affiliate partner.' });
+  }
+});
+
+// GET /api/admin/affiliates/:id
+app.get('/api/admin/affiliates/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const partner = await AffiliatePartner.findById(req.params.id).lean();
+    if (!partner) {
+      return res.status(404).json({ error: 'Affiliate partner not found.' });
+    }
+
+    const codes = await PromoCode.find({ affiliateId: partner._id });
+    const payouts = await AffiliatePayout.find({ affiliateId: partner._id }).sort({ createdAt: -1 });
+    const conversions = await AffiliateConversion.find({ affiliateId: partner._id }).sort({ createdAt: -1 }).lean();
+
+    for (const conv of conversions) {
+      const client = await User.findById(conv.customerUserId).select('username email');
+      conv.customer = client ? { username: client.username, email: client.email } : { username: 'Unknown User', email: '' };
+    }
+
+    // Dynamic Period Performance Summary (Today, 7 days, 30 days, All time)
+    async function getPeriodMetrics(affiliateId, range) {
+      const clickQuery = getDateFilterQuery(range, 'timestamp');
+      const codeUseQuery = getDateFilterQuery(range, 'timestamp');
+      const conversionQuery = getDateFilterQuery(range, 'createdAt');
+
+      const uniqueUsersList = await AffiliateCodeUse.distinct('customerUserId', {
+        ...codeUseQuery,
+        affiliateId
+      });
+      const users = uniqueUsersList.length;
+
+      const activeConversions = await AffiliateConversion.find({
+        ...conversionQuery,
+        affiliateId,
+        status: { $ne: 'reversed' }
+      });
+
+      const purchases = activeConversions.length;
+      const revenue = activeConversions.reduce((sum, c) => sum + c.amountPaid, 0);
+
+      return { users, purchases, revenue };
+    }
+
+    const performanceSummary = {
+      today: await getPeriodMetrics(partner._id, 'today'),
+      last7: await getPeriodMetrics(partner._id, '7days'),
+      last30: await getPeriodMetrics(partner._id, '30days'),
+      allTime: await getPeriodMetrics(partner._id, 'all')
+    };
+
+    res.status(200).json({
+      partner,
+      codes: codes.map(c => c.code),
+      payouts,
+      conversions,
+      performanceSummary
+    });
+  } catch (err) {
+    console.error('[Admin Get Affiliate Detail Error]:', err);
+    res.status(500).json({ error: 'Failed to retrieve affiliate details.' });
+  }
+});
+
+// GET /api/admin/promocodes
+app.get('/api/admin/promocodes', authenticateAdmin, async (req, res) => {
+  try {
+    const promocodes = await PromoCode.find({}).sort({ createdAt: -1 }).lean();
+    for (const pc of promocodes) {
+      if (pc.affiliateId) {
+        const partner = await AffiliatePartner.findById(pc.affiliateId);
+        pc.partner = partner ? { name: partner.name, instagramUsername: partner.instagramUsername } : null;
+      } else {
+        pc.partner = null;
+      }
+    }
+    res.status(200).json(promocodes);
+  } catch (err) {
+    console.error('[Admin Get Promo Codes Error]:', err);
+    res.status(500).json({ error: 'Failed to retrieve promo codes.' });
+  }
+});
+
+// POST /api/admin/promocodes
+app.post('/api/admin/promocodes', authenticateAdmin, async (req, res) => {
+  const { code, discount, affiliateId, commissionPercent, isActive } = req.body;
+  if (!code || discount === undefined) {
+    return res.status(400).json({ error: 'Promo code and discount amount are required.' });
+  }
+
+  try {
+    let targetCommission = commissionPercent;
+    if (affiliateId && targetCommission === undefined) {
+      const partner = await AffiliatePartner.findById(affiliateId);
+      if (partner) {
+        targetCommission = partner.commissionPercent;
+      }
+    }
+
+    const newPromo = await PromoCode.findOneAndUpdate(
+      { code: code.toUpperCase().trim() },
+      {
+        code: code.toUpperCase().trim(),
+        discount,
+        affiliateId: affiliateId || null,
+        commissionPercent: targetCommission || 0,
+        isActive: isActive !== undefined ? isActive : true,
+        updatedAt: new Date()
+      },
+      { upsert: true, new: true }
+    );
+
+    res.status(200).json(newPromo);
+  } catch (err) {
+    console.error('[Admin Create/Assign Promo Error]:', err);
+    res.status(500).json({ error: 'Failed to create or assign promo code.' });
+  }
+});
+
+// POST /api/admin/promocodes/:code/toggle
+app.post('/api/admin/promocodes/:code/toggle', authenticateAdmin, async (req, res) => {
+  const { code } = req.params;
+  const { isActive } = req.body;
+
+  try {
+    const promo = await PromoCode.findOneAndUpdate(
+      { code: code.toUpperCase().trim() },
+      { isActive: !!isActive, updatedAt: new Date() },
+      { new: true }
+    );
+    if (!promo) {
+      return res.status(404).json({ error: 'Promo code not found.' });
+    }
+    res.status(200).json(promo);
+  } catch (err) {
+    console.error('[Admin Toggle Promo Code Error]:', err);
+    res.status(500).json({ error: 'Failed to toggle promo code state.' });
+  }
+});
+
+// POST /api/admin/payouts
+app.post('/api/admin/payouts', authenticateAdmin, async (req, res) => {
+  const { affiliateId, amount, notes } = req.body;
+  if (!affiliateId || amount === undefined || amount <= 0) {
+    return res.status(400).json({ error: 'Affiliate ID and a positive payout amount are required.' });
+  }
+
+  try {
+    const partner = await AffiliatePartner.findById(affiliateId);
+    if (!partner) {
+      return res.status(404).json({ error: 'Affiliate partner not found.' });
+    }
+
+    const payout = await AffiliatePayout.create({
+      affiliateId,
+      amount,
+      notes: notes || "",
+      status: 'pending'
+    });
+
+    // Track Mixpanel event
+    mixpanelService.track('Affiliate Payout Created', partner.userId || affiliateId, {
+      affiliate_id: affiliateId,
+      amount: amount,
+      payout_id: payout._id.toString()
+    });
+
+    res.status(201).json(payout);
+  } catch (err) {
+    console.error('[Admin Create Payout Error]:', err);
+    res.status(500).json({ error: 'Failed to create payout record.' });
+  }
+});
+
+// POST /api/admin/payouts/:id/pay
+app.post('/api/admin/payouts/:id/pay', authenticateAdmin, async (req, res) => {
+  const { paymentMethod, paymentReference } = req.body;
+
+  try {
+    const payout = await AffiliatePayout.findById(req.params.id);
+    if (!payout) {
+      return res.status(404).json({ error: 'Payout record not found.' });
+    }
+
+    if (payout.status === 'paid') {
+      return res.status(400).json({ error: 'Payout is already completed.' });
+    }
+
+    payout.status = 'paid';
+    payout.paymentMethod = paymentMethod || 'UPI';
+    payout.paymentReference = paymentReference || '';
+    payout.paidAt = new Date();
+    await payout.save();
+
+    const partner = await AffiliatePartner.findById(payout.affiliateId);
+    if (partner) {
+      partner.totalCommissionPending = Math.max(0, partner.totalCommissionPending - payout.amount);
+      partner.totalCommissionPaid += payout.amount;
+      await partner.save();
+
+      // Track Mixpanel event
+      mixpanelService.track('Affiliate Payout Completed', partner.userId || partner._id, {
+        affiliate_id: partner._id.toString(),
+        amount: payout.amount,
+        payment_method: payout.paymentMethod,
+        payment_reference: payout.paymentReference,
+        payout_id: payout._id.toString()
+      });
+    }
+
+    res.status(200).json(payout);
+  } catch (err) {
+    console.error('[Admin Complete Payout Error]:', err);
+    res.status(500).json({ error: 'Failed to complete payout processing.' });
+  }
+});
+
+// POST /api/admin/conversions/:transactionId/reverse
+app.post('/api/admin/conversions/:transactionId/reverse', authenticateAdmin, async (req, res) => {
+  const { transactionId } = req.params;
+  const { reason } = req.body;
+
+  try {
+    await reverseAffiliateConversion(transactionId, reason || 'Refund/Reversal requested by Admin.');
+    res.status(200).json({ success: true, message: 'Commission conversion reversed successfully.' });
+  } catch (err) {
+    console.error('[Admin Reverse Conversion Error]:', err);
+    res.status(500).json({ error: 'Failed to reverse commission conversion.' });
+  }
+});
+
 
 // Start Express Server
 app.listen(PORT, () => {
