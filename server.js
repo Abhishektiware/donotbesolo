@@ -2837,7 +2837,11 @@ app.get('/api/admin/promocodes', authenticateAdmin, async (req, res) => {
     for (const pc of promocodes) {
       if (pc.affiliateId) {
         const partner = await AffiliatePartner.findById(pc.affiliateId);
-        pc.partner = partner ? { name: partner.name, instagramUsername: partner.instagramUsername } : null;
+        pc.partner = partner ? { 
+          name: partner.name, 
+          instagramUsername: partner.instagramUsername,
+          commissionPercent: partner.commissionPercent
+        } : null;
       } else {
         pc.partner = null;
       }

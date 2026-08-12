@@ -973,9 +973,24 @@
             ? `${pc.partner.name} (<span style="color: var(--rose-gold);">${pc.partner.instagramUsername}</span>)` 
             : '<span style="color: var(--text-dim);">Unassigned</span>';
 
-          const createdDate = new Date(pc.createdAt).toLocaleDateString('en-IN', {
-            day: '2-digit', month: 'short', year: 'numeric'
-          });
+          // Safe Created Date resolution
+          let createdDateDisplay = "—";
+          if (pc.createdAt) {
+            const dateObj = new Date(pc.createdAt);
+            if (!isNaN(dateObj.getTime())) {
+              createdDateDisplay = dateObj.toLocaleDateString(undefined, {
+                day: '2-digit', month: 'short', year: 'numeric'
+              });
+            }
+          }
+
+          // Safe Commission Rate resolution with partner fallback
+          let commissionDisplay = "—";
+          if (pc.commissionPercent !== undefined && pc.commissionPercent !== null) {
+            commissionDisplay = `${pc.commissionPercent}%`;
+          } else if (pc.partner && pc.partner.commissionPercent !== undefined && pc.partner.commissionPercent !== null) {
+            commissionDisplay = `${pc.partner.commissionPercent}%`;
+          }
 
           const statusClass = pc.isActive ? 'active' : 'terminated';
           const statusText = pc.isActive ? 'Active' : 'Inactive';
@@ -985,8 +1000,8 @@
             <td style="font-family: monospace; font-weight: 700; color: var(--neon-cyan);">${pc.code}</td>
             <td>${ownerText}</td>
             <td>₹${pc.discount}</td>
-            <td>${pc.commissionPercent}%</td>
-            <td>${createdDate}</td>
+            <td>${commissionDisplay}</td>
+            <td>${createdDateDisplay}</td>
             <td><span class="status-badge ${statusClass}">${statusText}</span></td>
             <td>
               <button onclick="event.stopPropagation(); togglePromoCodeActive('${pc.code}', ${pc.isActive})" style="padding: 6px 12px; font-size: 11px; background: ${pc.isActive ? 'var(--danger-red)' : 'var(--success-green)'}; box-shadow: none;">
