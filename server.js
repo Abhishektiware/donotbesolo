@@ -406,8 +406,9 @@ async function seedAdminUser() {
       $or: [{ email: adminEmail }, { username: adminUsername }]
     });
 
+    const hashedPassword = await bcrypt.hash(adminPassword, 10);
+
     if (!existingAdmin) {
-      const hashedPassword = await bcrypt.hash(adminPassword, 10);
       await User.create({
         fullname: 'System Admin',
         username: adminUsername,
@@ -420,7 +421,13 @@ async function seedAdminUser() {
       });
       console.log(`[Admin Seed]: Admin user auto-created (${adminUsername} / ${adminEmail}).`);
     } else {
-      console.log(`[Admin Seed]: Admin user already exists.`);
+      // Synchronize existing admin account details with the environment variables
+      existingAdmin.username = adminUsername;
+      existingAdmin.email = adminEmail;
+      existingAdmin.password = hashedPassword;
+      existingAdmin.emailVerified = true;
+      await existingAdmin.save();
+      console.log(`[Admin Seed]: Admin user credentials synchronized with env config.`);
     }
   } catch (err) {
     console.error('[Admin Seed Error]:', err);
@@ -665,50 +672,72 @@ app.post('/api/signup', async (req, res) => {
       return res.status(400).json({ error: 'Username or email is already registered in the grid.' });
     }
 
-    // 2. Hash Password beforehand to store securely in pending registry
+    // 2. Hash Password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 3. Generate 6-digit OTP code
-    const otp = otpService.generateOtp();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
+    // 3. Check Referrer and grant reward
+    let initialCredits = 20;
+    if (referredBy) {
+      const referrer = await User.findOne({ username: referredBy });
+      if (referrer) {
+        referrer.credits += 50; // reward referrer
+        await referrer.save();
+        
+        // Log transaction for referrer
+        const Transaction = mongoose.model('Transaction');
+        await Transaction.create({
+          userId: referrer._id,
+          refCode: referredBy,
+          amount: 0,
+          type: 'coins',
+          coins: 50,
+          status: 'completed'
+        });
+      }
+    }
 
-    // 4. Save or overwrite pending registration details
-    await PendingUser.deleteOne({ email });
-    await PendingUser.create({
+    // 4. Create the real user with emailVerified = true
+    const newUser = await User.create({
       fullname,
       username,
       email,
       password: hashedPassword,
-      otp,
-      expiresAt,
-      referredBy: referredBy || null
+      emailVerified: true,
+      credits: initialCredits,
+      coins: initialCredits,
+      referredBy: referredBy || null,
+      paymentStatus: 'unpaid',
+      isSubscriptionActive: false
     });
 
-    // 5. Send verification OTP email via SMTP
-    try {
-      await emailService.sendOtpEmail(email, otp, 5);
-    } catch (err) {
-      console.error('Failed to send SMTP email (signup):', err);
-      // Local development fallback
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[DEV FALLBACK] Verification Code for ${email}: ${otp}`);
-        return res.status(200).json({
-          success: true,
-          message: 'OTP generated and logged to server console (SMTP skipped).',
-          devMode: true
-        });
-      }
-      return res.status(500).json({ error: 'Failed to send OTP verification email. Please check server config.' });
-    }
+    // 5. Generate Session Token
+    const token = jwt.sign({ userId: newUser._id, username: newUser.username }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.status(200).json({
+    // 6. Track Mixpanel Signup Events
+    mixpanelService.track('User Signed Up', newUser._id, {
+      fullname: newUser.fullname,
+      username: newUser.username,
+      email: newUser.email,
+      referred_by: newUser.referredBy
+    });
+    mixpanelService.setUserProfile(newUser._id, {
+      $name: newUser.fullname,
+      $email: newUser.email,
+      username: newUser.username,
+      $created: newUser.createdAt || new Date()
+    });
+
+    res.status(201).json({
       success: true,
-      message: 'OTP verification code sent to your email.'
+      token,
+      userId: newUser._id,
+      credits: newUser.credits,
+      redirect: "/index.html"
     });
 
   } catch (err) {
     console.error('[Signup Error]:', err);
-    res.status(500).json({ error: 'System error during signup initialization.' });
+    res.status(500).json({ error: 'System error during signup.' });
   }
 });
 
@@ -892,11 +921,6 @@ app.post('/api/login', async (req, res) => {
       return res.status(400).json({ error: 'Access denied. Incorrect security credentials.' });
     }
 
-    // Check if email has been verified
-    if (user.emailVerified !== true) {
-      return res.status(400).json({ error: 'Please verify your email first.' });
-    }
-
     const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
 
     mixpanelService.track('User Logged In', user._id, {
@@ -905,51 +929,15 @@ app.post('/api/login', async (req, res) => {
 
     res.setHeader('Set-Cookie', `token=${token}; Path=/; Max-Age=${7 * 24 * 60 * 60}; SameSite=Lax`);
 
-    res.status(200).json({
-      success: true,
-      token,
-      userId: user._id,
-      username: user.username,
-      credits: user.credits,
-      paymentStatus: user.paymentStatus,
-      redirect: "/index.html"
-    });
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@donotbesolo.com';
+    const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+    const isEmailAdmin = user.email && adminEmail && user.email.toLowerCase().trim() === adminEmail.toLowerCase().trim();
+    const isUsernameAdmin = user.username && adminUsername && user.username.toLowerCase().trim() === adminUsername.toLowerCase().trim();
 
-  } catch (err) {
-    console.error('[Signup Error]:', err);
-    res.status(500).json({ error: 'System error during user account generation.' });
-  }
-});
-
-// POST /api/login
-app.post('/api/login', async (req, res) => {
-  const { usernameOrEmail, password } = req.body;
-
-  if (!usernameOrEmail || !password) {
-    return res.status(400).json({ error: 'Identifier and password credentials required.' });
-  }
-
-  try {
-    const user = await User.findOne({
-      $or: [{ email: usernameOrEmail }, { username: usernameOrEmail }]
-    });
-
-    if (!user) {
-      return res.status(400).json({ error: 'Credentials not found in the grid.' });
+    let redirectUrl = "/index.html";
+    if (isEmailAdmin || isUsernameAdmin) {
+      redirectUrl = "/admin/affiliates";
     }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ error: 'Access denied. Incorrect security credentials.' });
-    }
-
-    const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
-
-    mixpanelService.track('User Logged In', user._id, {
-      username: user.username
-    });
-
-    res.setHeader('Set-Cookie', `token=${token}; Path=/; Max-Age=${7 * 24 * 60 * 60}; SameSite=Lax`);
 
     res.status(200).json({
       success: true,
@@ -958,7 +946,7 @@ app.post('/api/login', async (req, res) => {
       username: user.username,
       credits: user.credits,
       paymentStatus: user.paymentStatus,
-      redirect: "/index.html"
+      redirect: redirectUrl
     });
 
   } catch (err) {
