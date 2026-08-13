@@ -672,72 +672,50 @@ app.post('/api/signup', async (req, res) => {
       return res.status(400).json({ error: 'Username or email is already registered in the grid.' });
     }
 
-    // 2. Hash Password
+    // 2. Hash Password beforehand to store securely in pending registry
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 3. Check Referrer and grant reward
-    let initialCredits = 20;
-    if (referredBy) {
-      const referrer = await User.findOne({ username: referredBy });
-      if (referrer) {
-        referrer.credits += 50; // reward referrer
-        await referrer.save();
-        
-        // Log transaction for referrer
-        const Transaction = mongoose.model('Transaction');
-        await Transaction.create({
-          userId: referrer._id,
-          refCode: referredBy,
-          amount: 0,
-          type: 'coins',
-          coins: 50,
-          status: 'completed'
-        });
-      }
-    }
+    // 3. Generate 6-digit OTP code
+    const otp = otpService.generateOtp();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
 
-    // 4. Create the real user with emailVerified = true
-    const newUser = await User.create({
+    // 4. Save or overwrite pending registration details
+    await PendingUser.deleteOne({ email });
+    await PendingUser.create({
       fullname,
       username,
       email,
       password: hashedPassword,
-      emailVerified: true,
-      credits: initialCredits,
-      coins: initialCredits,
-      referredBy: referredBy || null,
-      paymentStatus: 'unpaid',
-      isSubscriptionActive: false
+      otp,
+      expiresAt,
+      referredBy: referredBy || null
     });
 
-    // 5. Generate Session Token
-    const token = jwt.sign({ userId: newUser._id, username: newUser.username }, JWT_SECRET, { expiresIn: '7d' });
+    // 5. Send verification OTP email via SMTP
+    try {
+      await emailService.sendOtpEmail(email, otp, 5);
+    } catch (err) {
+      console.error('Failed to send SMTP email (signup):', err);
+      // Local development fallback
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[DEV FALLBACK] Verification Code for ${email}: ${otp}`);
+        return res.status(200).json({
+          success: true,
+          message: 'OTP generated and logged to server console (SMTP skipped).',
+          devMode: true
+        });
+      }
+      return res.status(500).json({ error: 'Failed to send OTP verification email. Please check server config.' });
+    }
 
-    // 6. Track Mixpanel Signup Events
-    mixpanelService.track('User Signed Up', newUser._id, {
-      fullname: newUser.fullname,
-      username: newUser.username,
-      email: newUser.email,
-      referred_by: newUser.referredBy
-    });
-    mixpanelService.setUserProfile(newUser._id, {
-      $name: newUser.fullname,
-      $email: newUser.email,
-      username: newUser.username,
-      $created: newUser.createdAt || new Date()
-    });
-
-    res.status(201).json({
+    res.status(200).json({
       success: true,
-      token,
-      userId: newUser._id,
-      credits: newUser.credits,
-      redirect: "/index.html"
+      message: 'OTP verification code sent to your email.'
     });
 
   } catch (err) {
     console.error('[Signup Error]:', err);
-    res.status(500).json({ error: 'System error during signup.' });
+    res.status(500).json({ error: 'System error during signup initialization.' });
   }
 });
 

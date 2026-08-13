@@ -11,23 +11,12 @@ const transporter = nodemailer.createTransport({
 });
 
 /**
- * Sends a verification OTP email using Resend with a premium dark theme.
+ * Sends a verification OTP email using Gmail SMTP with a premium dark theme.
  * @param {string} toEmail 
  * @param {string} otp 
  * @param {number} expiryMinutes 
  */
 async function sendOtpEmail(toEmail, otp, expiryMinutes = 5) {
-  if (!process.env.RESEND_API_KEY) {
-    throw new Error('RESEND_API_KEY environment variable is not defined.');
-  }
-
-  const fromEmail = process.env.RESEND_FROM_EMAIL;
-  if (!fromEmail) {
-    throw new Error('RESEND_FROM_EMAIL environment variable is not defined.');
-  }
-
-  const resend = new Resend(process.env.RESEND_API_KEY);
-
   const emailHtml = `
     <!DOCTYPE html>
     <html>
@@ -59,19 +48,22 @@ async function sendOtpEmail(toEmail, otp, expiryMinutes = 5) {
     </html>
   `;
 
-  const { data, error } = await resend.emails.send({
-    from: fromEmail,
+  const mailOptions = {
+    from: `"DONOTBESOLO Security" <${process.env.EMAIL_USER}>`,
     to: toEmail,
     subject: 'Verify Your Email - DONOTBESOLO',
     html: emailHtml
+  };
+
+  return new Promise((resolve, reject) => {
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        return reject(error);
+      }
+      console.log(`[OTP Email Sent via SMTP] Target: ${toEmail} | Msg ID: ${info.messageId}`);
+      resolve(info);
+    });
   });
-
-  if (error) {
-    throw new Error(`Resend failed to send email: ${error.message || JSON.stringify(error)}`);
-  }
-
-  console.log(`[OTP Email Sent via Resend] Target: ${toEmail} | Msg ID: ${data ? data.id : 'unknown'}`);
-  return data;
 }
 
 module.exports = {

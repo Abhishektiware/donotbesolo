@@ -371,17 +371,24 @@
         if (data.error) {
           showAlert('error', data.error);
         } else {
-          localStorage.setItem('token', data.token);
-          localStorage.setItem('userId', data.userId);
-          localStorage.setItem('username', username);
-          localStorage.setItem('credits', data.credits);
-          localStorage.setItem('paymentStatus', 'unpaid');
-
-          showAlert('success', 'Security authorized! Redirecting... ❤️');
+          // Hide login/signup tab headers and signup form
+          document.querySelector('.auth-tabs').style.display = 'none';
+          document.getElementById('signupForm').style.display = 'none';
           
-          setTimeout(() => {
-            window.location.href = data.redirect || '/index.html';
-          }, 1500);
+          // Show OTP Verification Screen
+          document.getElementById('otpVerificationScreen').style.display = 'block';
+          document.getElementById('otpEmailTarget').textContent = email;
+          
+          // Clear and focus OTP inputs
+          document.querySelectorAll('.otp-digit-input').forEach(inp => inp.value = '');
+          setupOtpInputListeners();
+          document.querySelectorAll('.otp-digit-input')[0].focus();
+
+          showAlert('success', 'Registration details accepted. Enter verification code.');
+
+          // Start Expiry Timer (5 mins = 300s) & Resend Cooldown (60s)
+          startExpiryTimer(300);
+          startResendCooldown();
         }
       })
       .catch(err => {
