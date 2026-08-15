@@ -14,8 +14,8 @@
       align-items: center;
       justify-content: center;
       text-align: center;
-      min-height: 100vh;
-      padding: 100px 20px 60px 20px;
+      min-height: auto;
+      padding: 120px 20px 60px 20px;
       position: relative;
     }
 
@@ -45,11 +45,13 @@
 
     .features-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 25px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
       width: 100%;
-      max-width: 1100px;
-      margin-top: 80px;
+      max-width: 1200px;
+      margin-top: 48px;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     .feature-card {
@@ -60,19 +62,27 @@
       gap: 12px;
     }
 
+    @media (max-width: 1024px) {
+      .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
     @media (max-width: 768px) {
       .features-grid {
         display: flex !important;
         overflow-x: auto !important;
         scroll-snap-type: x mandatory !important;
         gap: 16px !important;
-        padding-bottom: 16px !important;
+        padding: 0 16px 16px 16px !important;
+        margin-top: 32px !important;
         -webkit-overflow-scrolling: touch;
+        width: 100%;
       }
 
       .feature-card {
         flex: 0 0 85% !important;
-        scroll-snap-align: center !important;
+        scroll-snap-align: start !important;
       }
     }
 
@@ -653,13 +663,13 @@
       localStorage.setItem("activeVibe", vibe);
       localStorage.setItem("activeLanguage", language);
       localStorage.setItem("companionPreference", "true");
-      
+
       // Fallbacks
       localStorage.setItem("companionName", name);
       localStorage.setItem("companionGender", gender);
       localStorage.setItem("companionVibe", vibe);
       localStorage.setItem("companionLanguage", language);
-      
+
       const token = localStorage.getItem("token");
       if (token) {
         // Save in MongoDB immediately
@@ -676,15 +686,15 @@
             language: language
           })
         })
-        .then(res => res.json())
-        .then(data => {
-          window.location.href = "/chat.html";
-        })
-        .catch(err => {
-          console.error('[Sync Preferences Error]:', err);
-          // Fallback redirect anyway
-          window.location.href = "/chat.html";
-        });
+          .then(res => res.json())
+          .then(data => {
+            window.location.href = "/chat.html";
+          })
+          .catch(err => {
+            console.error('[Sync Preferences Error]:', err);
+            // Fallback redirect anyway
+            window.location.href = "/chat.html";
+          });
       } else {
         localStorage.setItem("redirectAfterLogin", "/chat.html");
         window.location.href = "/login.html";
@@ -713,7 +723,7 @@
       const grid = document.getElementById('companionGrid');
       if (!grid) return;
       grid.innerHTML = '';
-      
+
       if (data.length === 0) {
         grid.innerHTML = `
           <div style="grid-column: 1 / -1; padding: 40px; text-align: center; color: var(--text-muted); font-size: 16px; width: 100%;">
@@ -722,7 +732,7 @@
         `;
         return;
       }
-      
+
       data.forEach(comp => {
         const badgeSpans = comp.badges.map(b => `<span class="companion-badge-pill">${b}</span>`).join('');
         const cardHtml = `
@@ -752,14 +762,14 @@
       const genderVal = document.getElementById('genderFilter').value;
       const vibeVal = document.getElementById('vibeFilter').value;
       const citizenVal = document.getElementById('citizenFilter').value;
-      
+
       const filtered = companionsData.filter(comp => {
         const matchesGender = (genderVal === 'all' || comp.gender === genderVal);
         const matchesVibe = (vibeVal === 'all' || comp.vibe === vibeVal);
         const matchesCitizen = (citizenVal === 'all' || comp.origin === citizenVal);
         return matchesGender && matchesVibe && matchesCitizen;
       });
-      
+
       renderCompanions(filtered);
     }
 
@@ -785,7 +795,7 @@
         const companionGender = localStorage.getItem("companionGender") || "Female";
         const companionVibe = localStorage.getItem("activeVibe") || localStorage.getItem("companionVibe") || "Flirty";
         const companionLanguage = localStorage.getItem("activeLanguage") || localStorage.getItem("companionLanguage") || "Hinglish";
-        
+
         if (companionName) {
           fetch('/api/chat/select', {
             method: 'POST',
@@ -800,11 +810,11 @@
               language: companionLanguage
             })
           })
-          .then(res => res.json())
-          .then(data => {
-            console.log('[Preferences Auto-Synced to MongoDB]');
-          })
-          .catch(err => console.error('[Preferences Auto-Sync Error]:', err));
+            .then(res => res.json())
+            .then(data => {
+              console.log('[Preferences Auto-Synced to MongoDB]');
+            })
+            .catch(err => console.error('[Preferences Auto-Sync Error]:', err));
         }
 
         const username = localStorage.getItem("username") || "User";
@@ -844,20 +854,20 @@
           'Authorization': `Bearer ${token}`
         }
       })
-      .then(res => res.json())
-      .then(conversations => {
-        if (!conversations || conversations.length === 0) return;
+        .then(res => res.json())
+        .then(conversations => {
+          if (!conversations || conversations.length === 0) return;
 
-        const continueSection = document.getElementById('continueSection');
-        const grid = document.getElementById('activeCompanionGrid');
-        if (!continueSection || !grid) return;
+          const continueSection = document.getElementById('continueSection');
+          const grid = document.getElementById('activeCompanionGrid');
+          if (!continueSection || !grid) return;
 
-        grid.innerHTML = '';
-        continueSection.style.display = 'block';
+          grid.innerHTML = '';
+          continueSection.style.display = 'block';
 
-        conversations.forEach(comp => {
-          const formattedTime = formatLastChat(comp.lastChat);
-          const cardHtml = `
+          conversations.forEach(comp => {
+            const formattedTime = formatLastChat(comp.lastChat);
+            const cardHtml = `
             <div class="glass-panel companion-card">
               <div class="companion-avatar-wrapper">
                 <div class="companion-avatar">${comp.avatar}</div>
@@ -889,10 +899,10 @@
               </div>
             </div>
           `;
-          grid.insertAdjacentHTML('beforeend', cardHtml);
-        });
-      })
-      .catch(err => console.error('[Load Active Conversations Error]:', err));
+            grid.insertAdjacentHTML('beforeend', cardHtml);
+          });
+        })
+        .catch(err => console.error('[Load Active Conversations Error]:', err));
     }
 
     function formatLastChat(dateString) {
@@ -936,7 +946,9 @@
 
   <div class="hero-container">
     <h1 class="logo-glow">Someone who's always there. 💖</h1>
-    <h2 style="font-size: 26px; color: #ff2a75; font-weight: 600; text-shadow: 0 0 8px rgba(255, 42, 117, 0.4); margin-bottom: 15px; font-family: var(--font-body);">Talk. Laugh. Flirt. Be yourself.</h2>
+    <h2
+      style="font-size: 26px; color: #ff2a75; font-weight: 600; text-shadow: 0 0 8px rgba(255, 42, 117, 0.4); margin-bottom: 15px; font-family: var(--font-body);">
+      Talk. Laugh. Flirt. Be yourself.</h2>
     <p class="subtext" style="margin-top: 0; max-width: 750px;">
       Meet AI companions with their own personalities, memories, voices and vibes — available whenever you want to talk.
     </p>
@@ -969,17 +981,62 @@
     </div>
 
     <!-- Continue Conversations Section -->
-    <div id="continueSection" class="companions-section" style="display: none; margin-bottom: 40px; border-bottom: 1px solid rgba(255, 42, 117, 0.15); padding-bottom: 40px;">
+    <div id="continueSection" class="companions-section"
+      style="display: none; margin-bottom: 40px; border-bottom: 1px solid rgba(255, 42, 117, 0.15); padding-bottom: 40px;">
       <h2 class="section-title-glow">Continue Conversations</h2>
       <p class="section-subtitle">Jump straight back into your active connections</p>
       <div class="companion-grid" id="activeCompanionGrid"></div>
+    </div>
+
+    <!-- Privacy & Brand Trust Guarantee Section -->
+    <div class="trust-section">
+      <h2 class="section-title-glow">Privacy & Brand Trust Guarantee</h2>
+      <p class="section-subtitle">Your private life stays private. We built donotbesolo with zero compromises on security.</p>
+      
+      <div class="trust-grid">
+        <div class="glass-panel trust-card">
+          <div class="trust-icon">🔒</div>
+          <h3>We Never Send Emails</h3>
+          <p>No marketing spam, no digests, and no unsolicited notifications. Your inbox stays completely clean.</p>
+        </div>
+
+        <div class="glass-panel trust-card">
+          <div class="trust-icon">👤</div>
+          <h3>Anonymous Chat</h3>
+          <p>No real names or identity details required. Chat freely under any alias you prefer.</p>
+        </div>
+
+        <div class="glass-panel trust-card">
+          <div class="trust-icon">⏳</div>
+          <h3>Auto-Delete History</h3>
+          <p>Chats are permanently auto-deleted after 30 days. No server logs, backups, or residue left behind.</p>
+        </div>
+
+        <div class="glass-panel trust-card">
+          <div class="trust-icon">💳</div>
+          <h3>UPI Secure Payments</h3>
+          <p>Processed directly through secure UPI links. We never store credit cards, bank accounts, or billing data.</p>
+        </div>
+
+        <div class="glass-panel trust-card">
+          <div class="trust-icon">🔞</div>
+          <h3>18+ Strict Verification</h3>
+          <p>A secure adult-only gateway enforcing compliance standards to keep our environment safe.</p>
+        </div>
+
+        <div class="glass-panel trust-card">
+          <div class="trust-icon">🛡️</div>
+          <h3>Screenshot Protection</h3>
+          <p>Advanced client-side protection and layout blur shields guard your conversation privacy at all times.</p>
+        </div>
+      </div>
     </div>
 
     <!-- Choose Your Companion Section -->
     <div class="companions-section">
       <h2 class="section-title-glow">Choose Your Companion</h2>
       <p class="section-subtitle">Select a personality style to start chatting instantly</p>
-      
+
       <!-- Premium Glass Filter Control Bar -->
       <div class="filter-controls">
         <div class="filter-group">
@@ -990,7 +1047,7 @@
             <option value="Male">Male Companions</option>
           </select>
         </div>
-        
+
         <div class="filter-group">
           <label for="vibeFilter">Conversation Vibe</label>
           <select id="vibeFilter" class="cyber-select" onchange="filterCompanions()">
@@ -1017,7 +1074,7 @@
           </select>
         </div>
       </div>
-      
+
       <div class="companion-grid" id="companionGrid">
         <!-- Companion cards rendered dynamically via JavaScript -->
       </div>

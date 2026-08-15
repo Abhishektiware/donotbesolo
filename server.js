@@ -9,6 +9,16 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const twilio = require('twilio');
+
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
+
+let twilioClient = null;
+if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
+  twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,6 +46,17 @@ app.get('/api/health', (req, res) => {
     database: dbStatus,
     uptime: process.uptime()
   });
+});
+
+// Admin Affiliate Private Route (Owner access via secret key)
+app.get('/admin', (req, res) => {
+  const secretKey = process.env.ADMIN_SECRET_KEY || 'super_secret_admin_key_2026';
+  const keyQuery = req.query.key;
+  if (keyQuery && keyQuery === secretKey) {
+    res.sendFile(path.join(__dirname, 'admin-views', 'admin-affiliate.html'));
+  } else {
+    res.redirect('/');
+  }
 });
 
 // Admin Affiliate Private Page Route
@@ -124,9 +145,12 @@ mongoose.connect(cloudMongoUri)
 const userSchema = new mongoose.Schema({
   fullname: { type: String, required: true },
   username: { type: String, required: true, unique: true },
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
+  email: { type: String, sparse: true, unique: true },
+  password: { type: String },
+  phone: { type: String, sparse: true, unique: true },
   emailVerified: { type: Boolean, default: false },
+  role: { type: String, default: 'user' },
+  referredByPartnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'AffiliatePartner', default: null },
   credits: { type: Number, default: 20 },
   coins: { type: Number, default: 20 },
   referredBy: { type: String, default: null },
@@ -185,6 +209,14 @@ const pendingUserSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now, expires: 600 } // TTL 10 mins fallback
 });
 const PendingUser = mongoose.model('PendingUser', pendingUserSchema);
+
+// Phone OTP Schema
+const phoneOtpSchema = new mongoose.Schema({
+  phone: { type: String, required: true, unique: true },
+  otp: { type: String, required: true },
+  expiresAt: { type: Date, required: true }
+});
+const PhoneOtp = mongoose.model('PhoneOtp', phoneOtpSchema);
 
 // 1.5. Conversation Schema
 const conversationSchema = new mongoose.Schema({
@@ -287,6 +319,7 @@ const affiliatePartnerSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   totalClicks: { type: Number, default: 0 },
   totalCodeUses: { type: Number, default: 0 },
+  uniqueUsers: { type: Number, default: 0 },
   totalSuccessfulPurchases: { type: Number, default: 0 },
   totalRevenue: { type: Number, default: 0 },
   totalCommissionEarned: { type: Number, default: 0 },
@@ -417,7 +450,8 @@ async function seedAdminUser() {
         emailVerified: true,
         credits: 9999,
         coins: 9999,
-        isSubscriptionActive: true
+        isSubscriptionActive: true,
+        role: 'admin'
       });
       console.log(`[Admin Seed]: Admin user auto-created (${adminUsername} / ${adminEmail}).`);
     } else {
@@ -426,6 +460,7 @@ async function seedAdminUser() {
       existingAdmin.email = adminEmail;
       existingAdmin.password = hashedPassword;
       existingAdmin.emailVerified = true;
+      existingAdmin.role = 'admin';
       await existingAdmin.save();
       console.log(`[Admin Seed]: Admin user credentials synchronized with env config.`);
     }
@@ -457,6 +492,14 @@ function authenticateToken(req, res, next) {
 
 // Admin Authentication Middleware
 async function authenticateAdmin(req, res, next) {
+  const secretKey = process.env.ADMIN_SECRET_KEY || 'super_secret_admin_key_2026';
+  const keyHeader = req.headers['x-admin-key'] || req.headers['x-api-key'];
+  const keyQuery = req.query.key || req.query.admin_key || req.query.apiKey;
+
+  if ((keyHeader && keyHeader === secretKey) || (keyQuery && keyQuery === secretKey)) {
+    return next();
+  }
+
   let token = null;
   const authHeader = req.headers['authorization'];
   if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -476,9 +519,9 @@ async function authenticateAdmin(req, res, next) {
 
   if (!token) {
     if (req.path.startsWith('/api/')) {
-      return res.status(401).json({ error: 'Admin access token required.' });
+      return res.status(403).json({ error: 'Forbidden: Admin access token or key required.' });
     } else {
-      return res.redirect('/login.html?redirect=' + encodeURIComponent(req.originalUrl));
+      return res.redirect('/');
     }
   }
 
@@ -490,7 +533,7 @@ async function authenticateAdmin(req, res, next) {
       if (req.path.startsWith('/api/')) {
         return res.status(403).json({ error: 'User profile not found.' });
       } else {
-        return res.redirect('/login.html');
+        return res.redirect('/');
       }
     }
 
@@ -499,12 +542,13 @@ async function authenticateAdmin(req, res, next) {
 
     const isEmailAdmin = user.email && adminEmail && user.email.toLowerCase().trim() === adminEmail.toLowerCase().trim();
     const isUsernameAdmin = user.username && adminUsername && user.username.toLowerCase().trim() === adminUsername.toLowerCase().trim();
+    const isRoleAdmin = user.role === 'admin';
 
-    if (!isEmailAdmin && !isUsernameAdmin) {
+    if (!isEmailAdmin && !isUsernameAdmin && !isRoleAdmin) {
       if (req.path.startsWith('/api/')) {
         return res.status(403).json({ error: 'Admin privileges required.' });
       } else {
-        return res.status(403).send('Forbidden: Admin access only.');
+        return res.redirect('/');
       }
     }
 
@@ -514,7 +558,7 @@ async function authenticateAdmin(req, res, next) {
     if (req.path.startsWith('/api/')) {
       return res.status(403).json({ error: 'Invalid or expired admin token.' });
     } else {
-      return res.redirect('/login.html');
+      return res.redirect('/');
     }
   }
 }
@@ -874,6 +918,188 @@ app.post('/api/resend-otp', async (req, res) => {
   } catch (err) {
     console.error('[Resend OTP Error]:', err);
     res.status(500).json({ error: 'System failed to resend verification code.' });
+  }
+});
+
+// POST /api/auth/send-phone-otp
+app.post('/api/auth/send-phone-otp', async (req, res) => {
+  const { phone } = req.body;
+  if (!phone) {
+    return res.status(400).json({ error: 'Phone number is required.' });
+  }
+
+  // Normalize phone number to E.164 (+91XXXXXXXXXX)
+  let cleanPhone = phone.replace(/\D/g, '');
+  if (cleanPhone.length === 10) {
+    cleanPhone = '91' + cleanPhone;
+  }
+  const normalizedPhone = '+' + cleanPhone;
+
+  if (!/^\+91\d{10}$/.test(normalizedPhone)) {
+    return res.status(400).json({ error: 'Please enter a valid 10-digit phone number.' });
+  }
+
+  try {
+    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // Generate 6-digit OTP
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
+
+    // Save/update OTP in database
+    await PhoneOtp.deleteOne({ phone: normalizedPhone });
+    await PhoneOtp.create({
+      phone: normalizedPhone,
+      otp,
+      expiresAt
+    });
+
+    // Dispatch SMS via Twilio Messages API
+    if (twilioClient) {
+      try {
+        await twilioClient.messages.create({
+          body: `Your donotbesolo verification OTP is ${otp}. Valid for 5 minutes.`,
+          from: TWILIO_PHONE_NUMBER,
+          to: normalizedPhone
+        });
+        console.log(`[Twilio SMS Sent] Phone: ${normalizedPhone}, OTP: ${otp}`);
+      } catch (twilioErr) {
+        console.error('Failed to send Twilio SMS:', twilioErr.message);
+        // Fallback for non-production environments
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[Twilio Fallback Log] Phone: ${normalizedPhone}, OTP: ${otp}`);
+        } else {
+          return res.status(500).json({ error: 'Failed to send OTP via Twilio SMS.' });
+        }
+      }
+    } else {
+      console.log(`[Twilio Offline Log] Phone: ${normalizedPhone}, OTP: ${otp}`);
+    }
+
+    res.status(200).json({ success: true, message: 'Verification code sent successfully.' });
+  } catch (err) {
+    console.error('[Send Phone OTP Error]:', err);
+    res.status(500).json({ error: 'System error during phone OTP dispatch.' });
+  }
+});
+
+// POST /api/auth/verify-phone-otp
+app.post('/api/auth/verify-phone-otp', async (req, res) => {
+  const { phone, otp, fullName, username, referralCode } = req.body;
+  if (!phone || !otp) {
+    return res.status(400).json({ error: 'Phone number and verification OTP are required.' });
+  }
+
+  // Normalize phone number to E.164 (+91XXXXXXXXXX)
+  let cleanPhone = phone.replace(/\D/g, '');
+  if (cleanPhone.length === 10) {
+    cleanPhone = '91' + cleanPhone;
+  }
+  const normalizedPhone = '+' + cleanPhone;
+
+  try {
+    const otpRecord = await PhoneOtp.findOne({ phone: normalizedPhone });
+    if (!otpRecord) {
+      return res.status(404).json({ error: 'No OTP record found for this phone number.' });
+    }
+
+    if (new Date() > otpRecord.expiresAt) {
+      return res.status(400).json({ error: 'Verification code has expired. Please request a new one.' });
+    }
+
+    if (otpRecord.otp !== otp) {
+      return res.status(400).json({ error: 'Invalid verification code.' });
+    }
+
+    // OTP is valid! Clean up OTP record
+    await PhoneOtp.deleteOne({ _id: otpRecord._id });
+
+    // Validate referral code in Mongoose PromoCode collection
+    let promo = null;
+    let referredByPartnerId = null;
+    if (referralCode) {
+      promo = await PromoCode.findOne({ code: referralCode.toUpperCase().trim(), isActive: true });
+      if (promo) {
+        referredByPartnerId = promo.affiliateId;
+      }
+    }
+
+    // Find or create User
+    let user = await User.findOne({ phone: normalizedPhone });
+    let isNewUser = false;
+
+    if (!user) {
+      isNewUser = true;
+      const initialCredits = 20;
+
+      // Generate unique username and fullname if not provided
+      const finalUsername = username ? username.trim() : `user_${normalizedPhone.slice(-4)}${Math.floor(100 + Math.random() * 900)}`;
+      const finalFullname = fullName ? fullName.trim() : `User ${normalizedPhone.slice(-4)}`;
+
+      // Double-check username uniqueness to avoid race conditions
+      const usernameExists = await User.findOne({ username: finalUsername });
+      if (usernameExists) {
+        return res.status(400).json({ error: 'Username is already taken. Please choose another one.' });
+      }
+
+      // Create new user record
+      user = await User.create({
+        fullname: finalFullname,
+        username: finalUsername,
+        phone: normalizedPhone,
+        referredByPartnerId,
+        email: `phone_${normalizedPhone.slice(1)}@donotbesolo.com`, // dummy unique email to keep database constraints safe
+        password: await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10), // dummy hashed password
+        emailVerified: true,
+        credits: initialCredits,
+        coins: initialCredits,
+        referredBy: promo ? promo.code : null,
+        paymentStatus: 'unpaid',
+        isSubscriptionActive: false,
+        role: 'user'
+      });
+
+      // Update associated Affiliate Partner statistics
+      if (referredByPartnerId) {
+        await AffiliatePartner.findByIdAndUpdate(referredByPartnerId, {
+          $inc: { totalCodeUses: 1, uniqueUsers: 1 }
+        });
+        console.log(`[Affiliate] Incremented uses & unique users for partner ID: ${referredByPartnerId}`);
+      }
+
+      // Track signup event
+      mixpanelService.track('User Signed Up', user._id, {
+        fullname: user.fullname,
+        username: user.username,
+        phone: user.phone,
+        referred_by_partner: referredByPartnerId
+      });
+      mixpanelService.setUserProfile(user._id, {
+        $name: user.fullname,
+        username: user.username,
+        phone: user.phone,
+        $created: user.createdAt || new Date()
+      });
+    }
+
+    // Generate JWT token containing userId, phone, and role
+    const token = jwt.sign(
+      { userId: user._id, phone: user.phone, role: user.role || 'user' },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.status(200).json({
+      success: true,
+      token,
+      userId: user._id,
+      username: user.username,
+      credits: user.credits,
+      paymentStatus: user.paymentStatus || 'unpaid',
+      isNewUser,
+      redirect: "/"
+    });
+
+  } catch (err) {
+    console.error('[Verify Phone OTP Error]:', err);
+    res.status(500).json({ error: 'System error during verification.' });
   }
 });
 
