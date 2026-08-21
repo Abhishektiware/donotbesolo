@@ -198,7 +198,7 @@
       // Create heart particles
       const particleContainer = document.getElementById('heartParticles');
       const hearts = ['💖', '❤️', '💕', '✨', '🌸'];
-      for (let i = 0; i < 15; i++) {
+      for (let i = 0; i !== 15; i++) {
         const span = document.createElement('span');
         span.className = 'heart-particle';
         span.textContent = hearts[Math.floor(Math.random() * hearts.length)];

@@ -7,9 +7,9 @@ const relationshipService = require('./relationship.service');
  * Uses Llama 3.3 70B model via Together AI.
  */
 async function updateMemoryState(userId, companionName, lastMessages) {
-  const togetherApiKey = process.env.TOGETHER_API_KEY;
-  if (!togetherApiKey || togetherApiKey.includes('placeholder')) {
-    console.warn('[Summary Service] Together API key is placeholder or missing, skipping summary update.');
+  const apiKey = (process.env.BLUEMINDS_API_KEY || '').trim();
+  if (!apiKey || apiKey.includes('placeholder')) {
+    console.warn('[Summary Service] Bluesminds API key is placeholder or missing, skipping summary update.');
     return;
   }
 
@@ -63,25 +63,30 @@ Output strictly as a JSON object with this exact schema:
 Do not include any markdown wrap, backticks, or explanatory text. Return only the raw JSON.`;
 
   try {
-    const togetherModel = (!process.env.TEXT_MODEL || process.env.TEXT_MODEL.startsWith('key_') || !process.env.TEXT_MODEL.includes('/'))
-      ? 'meta-llama/Llama-3.3-70B-Instruct-Turbo'
-      : process.env.TEXT_MODEL;
-
-    const res = await axios.post('https://api.together.xyz/v1/chat/completions', {
-      model: togetherModel,
+    const res = await axios.post('https://api.bluesminds.com/v1/chat/completions', {
+      model: 'meta/llama-3.1-8b-instruct',
       messages: [
         { role: 'user', content: prompt }
       ],
       max_tokens: 500,
       temperature: 0.2
     }, {
-      headers: { Authorization: `Bearer ${togetherApiKey}` },
-      timeout: 12000
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 45000
     });
 
     const outputText = res.data.choices[0].message.content.trim();
     const cleanJsonText = outputText.replace(/```json|```/g, "").trim();
-    const data = JSON.parse(cleanJsonText);
+    let data;
+    try {
+      data = JSON.parse(cleanJsonText);
+    } catch (parseErr) {
+      console.error('[Summary Service JSON Parse Error]: Failed to parse generated summary JSON:', parseErr.message);
+      return;
+    }
 
     if (data.summary) {
       memory.summary = data.summary;

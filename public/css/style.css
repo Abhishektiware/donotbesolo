@@ -1,4 +1,40 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600;700&display=swap');
+:root {
+  --font-heading: 'Space Grotesk', sans-serif;
+  --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Entire Page Body & Chat Messages */
+body,
+input,
+button,
+textarea,
+.chat-message,
+p {
+  font-family: var(--font-body) !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Logo, Headings, and Titles */
+h1,
+h2,
+h3,
+.logo,
+.hero-title,
+.auth-title {
+  font-family: var(--font-heading) !important;
+  letter-spacing: -0.02em;
+}
+
+/* Buttons */
+.btn-cyber,
+.inline-otp-btn {
+  font-family: var(--font-heading) !important;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700&display=swap');
 
 :root {
   --bg-base: #0a0512;
@@ -12,7 +48,7 @@
   --gradient-card: linear-gradient(135deg, rgba(21, 11, 31, 0.95) 0%, rgba(13, 7, 20, 0.95) 100%);
   --gradient-pink: linear-gradient(135deg, #ff2a75 0%, #ff4da6 100%);
   --gradient-violet: linear-gradient(135deg, #8a2be2 0%, #ff4da6 100%);
-  --font-head: 'Playfair Display', serif;
+  --font-head: 'Orbitron', sans-serif;
   --font-body: 'Outfit', sans-serif;
   --pink-glow-shadow: 0 0 20px rgba(255, 42, 117, 0.4);
   --rose-glow-shadow: 0 0 20px rgba(255, 77, 166, 0.4);
@@ -896,6 +932,7 @@ a:hover {
   box-shadow: var(--pink-glow-shadow);
   transition: all 0.3s ease;
   flex-shrink: 0;
+  width: auto;
 }
 
 .btn-send-minimal:hover {
@@ -1100,13 +1137,24 @@ body.page-chat {
   }
 
   .companion-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+    display: flex !important;
+    overflow-x: auto !important;
+    scroll-snap-type: x mandatory !important;
+    gap: 14px !important;
+    padding-bottom: 12px !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    width: 100% !important;
+  }
+
+  .companion-grid::-webkit-scrollbar {
+    display: none !important;
   }
 
   .companion-card {
-    padding: 16px 12px;
-    border-radius: 16px;
+    flex: 0 0 85% !important;
+    scroll-snap-align: start !important;
+    padding: 20px !important;
   }
 
   .companion-avatar-wrapper {
@@ -1158,5 +1206,16 @@ body.page-chat {
     width: 38px;
     height: 38px;
     font-size: 15px;
+  }
+}
+
+/* ===================================================
+   DESKTOP WIDESCREEN ADJUSTMENTS & SIDEBARS
+   =================================================== */
+@media (min-width: 769px) {
+
+  /* Hide mobile badge on desktop */
+  .user-badge-mobile {
+    display: none !important;
   }
 }

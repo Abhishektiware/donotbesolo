@@ -9,16 +9,6 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const twilio = require('twilio');
-
-const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
-const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
-
-let twilioClient = null;
-if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
-  twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,7 +26,6 @@ app.use(cors());
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
-
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   const dbState = mongoose.connection.readyState;
@@ -53,7 +42,16 @@ app.get('/admin', (req, res) => {
   const secretKey = process.env.ADMIN_SECRET_KEY || 'super_secret_admin_key_2026';
   const keyQuery = req.query.key;
   if (keyQuery && keyQuery === secretKey) {
-    res.sendFile(path.join(__dirname, 'admin-views', 'admin-affiliate.html'));
+    const rootPath = path.join(__dirname, 'admin-affiliate.html');
+    const publicPath = path.join(__dirname, 'public', 'admin-affiliate.html');
+
+    if (fs.existsSync(rootPath)) {
+      return res.sendFile(rootPath);
+    } else if (fs.existsSync(publicPath)) {
+      return res.sendFile(publicPath);
+    } else {
+      return res.sendFile(path.join(__dirname, 'admin-views', 'admin-affiliate.html'));
+    }
   } else {
     res.redirect('/');
   }
@@ -66,7 +64,6 @@ app.get('/admin/affiliates', authenticateAdmin, (req, res) => {
 
 // STATIC ASSETS MIDDLEWARE (After dynamic HTML routes)
 app.use(express.static(path.join(__dirname, 'public')));
-// Ensure uploads folder exists in root (not in public for high security)
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR);
@@ -157,7 +154,7 @@ const userSchema = new mongoose.Schema({
   paymentStatus: { type: String, enum: ['unpaid', 'paid'], default: 'unpaid' },
   isSubscriptionActive: { type: Boolean, default: false },
   chatCount: { type: Number, default: 0 },
-  teasingStatus: { type: String, default: 'none' }, // 'none', 'teasing_photo', 'teasing_voice'
+  teasingStatus: { type: String, default: 'none' },
   teaseLinesCount: { type: Number, default: 0 },
   activeCompanionName: { type: String, default: 'Aria' },
   activeCompanion: { type: String, default: 'Aria' },
@@ -176,7 +173,7 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-// 1.1 Memory Schema for Persistent Conversation Memory System
+// 1.1 Memory Schema
 const memorySchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   companionName: { type: String, required: true },
@@ -195,18 +192,18 @@ const memorySchema = new mongoose.Schema({
 memorySchema.index({ userId: 1, companionName: 1 }, { unique: true });
 const Memory = mongoose.model('Memory', memorySchema);
 
-// 1.25 Pending User Schema (For registration OTP flow)
+// 1.25 Pending User Schema
 const pendingUserSchema = new mongoose.Schema({
   fullname: { type: String, required: true },
   username: { type: String, required: true },
   email: { type: String, required: true, unique: true },
-  password: { type: String, required: true }, // hashed password
+  password: { type: String, required: true },
   otp: { type: String, required: true },
   expiresAt: { type: Date, required: true },
   referredBy: { type: String, default: null },
   attempts: { type: Number, default: 0 },
   lastResentAt: { type: Date, default: null },
-  createdAt: { type: Date, default: Date.now, expires: 600 } // TTL 10 mins fallback
+  createdAt: { type: Date, default: Date.now, expires: 600 }
 });
 const PendingUser = mongoose.model('PendingUser', pendingUserSchema);
 
@@ -245,7 +242,7 @@ const conversationSchema = new mongoose.Schema({
 conversationSchema.index({ userId: 1, companionName: 1 }, { unique: true });
 const Conversation = mongoose.model('Conversation', conversationSchema);
 
-// 2. OTP Schema (Expires in 10 minutes)
+// 2. OTP Schema
 const otpSchema = new mongoose.Schema({
   email: { type: String, required: true },
   otpCode: { type: String, required: true },
@@ -281,7 +278,7 @@ const transactionSchema = new mongoose.Schema({
 });
 const Transaction = mongoose.model('Transaction', transactionSchema);
 
-// 5. Media Schema (24 Hour TTL index)
+// 5. Media Schema
 const mediaSchema = new mongoose.Schema({
   mediaId: { type: String, required: true, unique: true },
   mediaType: { type: String, enum: ['image', 'voice'], required: true },
@@ -290,7 +287,6 @@ const mediaSchema = new mongoose.Schema({
   unlockedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   createdAt: { type: Date, default: Date.now }
 });
-// Expire index for automatic document cleanup after 24h
 mediaSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
 const Media = mongoose.model('Media', mediaSchema);
 
@@ -382,7 +378,7 @@ const storePackageSchema = new mongoose.Schema({
 });
 const StorePackage = mongoose.model('StorePackage', storePackageSchema);
 
-// PromoCode Seeder
+// Seeders
 async function seedPromoCodes() {
   const codes = [
     { code: 'LAUNCH10', discount: 11 },
@@ -405,7 +401,6 @@ async function seedPromoCodes() {
   }
 }
 
-// StorePackage Seeder
 async function seedStorePackages() {
   const packages = [
     { name: "Premium Dating Pass", price: 110, coins: 100, type: "subscription", available: true },
@@ -427,7 +422,6 @@ async function seedStorePackages() {
   }
 }
 
-// Admin User Seeder
 async function seedAdminUser() {
   const User = mongoose.model('User');
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@donotbesolo.com';
@@ -455,7 +449,6 @@ async function seedAdminUser() {
       });
       console.log(`[Admin Seed]: Admin user auto-created (${adminUsername} / ${adminEmail}).`);
     } else {
-      // Synchronize existing admin account details with the environment variables
       existingAdmin.username = adminUsername;
       existingAdmin.email = adminEmail;
       existingAdmin.password = hashedPassword;
@@ -476,7 +469,7 @@ async function seedAdminUser() {
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  
+
   if (!token) {
     return res.status(401).json({ error: 'Access token required. Please sign in.' });
   }
@@ -490,7 +483,6 @@ function authenticateToken(req, res, next) {
   });
 }
 
-// Admin Authentication Middleware
 async function authenticateAdmin(req, res, next) {
   const secretKey = process.env.ADMIN_SECRET_KEY || 'super_secret_admin_key_2026';
   const keyHeader = req.headers['x-admin-key'] || req.headers['x-api-key'];
@@ -563,7 +555,6 @@ async function authenticateAdmin(req, res, next) {
   }
 }
 
-// Date Filter Query Helper
 function getDateFilterQuery(range, dateField = 'createdAt') {
   const now = new Date();
   const start = new Date();
@@ -591,27 +582,24 @@ function getDateFilterQuery(range, dateField = 'createdAt') {
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     matchQuery[dateField] = { $gte: firstDayOfMonth, $lte: now };
   } else {
-    // all time
     matchQuery = {};
   }
 
   return matchQuery;
 }
 
-// Background cleanup routine for expired physical media files (runs hourly)
 async function cleanExpiredPhysicalFiles() {
   try {
     const activeMediaInDb = await Media.find({}, { filePath: 1 });
     const activePaths = new Set(activeMediaInDb.map(m => path.resolve(m.filePath)));
-    
+
     fs.readdir(UPLOADS_DIR, (err, files) => {
       if (err) return console.error('[Cleanup] Error reading uploads folder:', err);
-      
+
       files.forEach(file => {
         const fullPath = path.join(UPLOADS_DIR, file);
-        // Exclude gitkeep or hidden files
         if (file.startsWith('.')) return;
-        
+
         if (!activePaths.has(path.resolve(fullPath))) {
           fs.unlink(fullPath, (unlinkErr) => {
             if (unlinkErr) console.error(`[Cleanup] Failed to delete expired file ${file}:`, unlinkErr);
@@ -626,7 +614,6 @@ async function cleanExpiredPhysicalFiles() {
 }
 setInterval(cleanExpiredPhysicalFiles, 60 * 60 * 1000);
 
-// Transporter for Nodemailer OTP delivery
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -639,12 +626,11 @@ const transporter = nodemailer.createTransport({
 // API Endpoints
 // -------------------------------------------------------------
 
-// Root Landing Route
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// POST /api/send-otp
+// POST /api/send-otp (Email)
 app.post('/api/send-otp', async (req, res) => {
   const { email } = req.body;
   if (!email) {
@@ -652,17 +638,14 @@ app.post('/api/send-otp', async (req, res) => {
   }
 
   try {
-    // Check if user already exists
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({ error: 'Email address is already registered in the grid.' });
     }
 
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    // Save OTP to DB (overwrites or appends, TTL handles removal)
     await OTP.create({ email, otpCode });
 
-    // Cyberpunk HTML Email Template
     const emailHtml = `
       <div style="background-color: #0f051e; color: #ffffff; font-family: 'Rajdhani', 'Outfit', sans-serif; padding: 40px; border-radius: 8px; border: 2px solid #ff4da6; text-align: center; max-width: 500px; margin: 0 auto; box-shadow: 0 0 20px #8a2be2;">
         <h1 style="color: #ff4da6; text-shadow: 0 0 10px #ff4da6; margin-bottom: 20px; font-size: 28px;">DONOTBESOLO</h1>
@@ -681,27 +664,20 @@ app.post('/api/send-otp', async (req, res) => {
       html: emailHtml
     };
 
-    // Attempt sending SMTP mail, fall back to console print
     transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
-        console.log('\n======================================================');
-        console.log(`[LOCAL DEV OTP LOG] SMTP connection skipped or failed.`);
-        console.log(`[TARGET EMAIL]      ${email}`);
-        console.log(`[VERIFICATION CODE] ${otpCode}`);
-        console.log('======================================================\n');
+        console.log(`[LOCAL DEV OTP LOG] Email: ${email} | OTP: ${otpCode}`);
         return res.status(200).json({ success: true, devMode: true, message: 'OTP logged to server console for testing.' });
       }
-      console.log(`[OTP Sent via Email] Message ID: ${info.messageId}`);
       res.status(200).json({ success: true, message: 'OTP code sent to email.' });
     });
-
   } catch (err) {
     console.error('[OTP Error]:', err);
     res.status(500).json({ error: 'Failed to trigger verification code.' });
   }
 });
 
-// POST /api/signup
+// POST /api/signup (Email)
 app.post('/api/signup', async (req, res) => {
   const { fullname, username, email, password, referredBy } = req.body;
 
@@ -710,20 +686,15 @@ app.post('/api/signup', async (req, res) => {
   }
 
   try {
-    // 1. Check existence in real User DB
     const userExists = await User.findOne({ $or: [{ email }, { username }] });
     if (userExists) {
       return res.status(400).json({ error: 'Username or email is already registered in the grid.' });
     }
 
-    // 2. Hash Password beforehand to store securely in pending registry
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    // 3. Generate 6-digit OTP code
     const otp = otpService.generateOtp();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-    // 4. Save or overwrite pending registration details
     await PendingUser.deleteOne({ email });
     await PendingUser.create({
       fullname,
@@ -735,35 +706,25 @@ app.post('/api/signup', async (req, res) => {
       referredBy: referredBy || null
     });
 
-    // 5. Send verification OTP email via SMTP
     try {
       await emailService.sendOtpEmail(email, otp, 5);
     } catch (err) {
-      console.error('Failed to send SMTP email (signup):', err);
-      // Local development fallback
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[DEV FALLBACK] Verification Code for ${email}: ${otp}`);
-        return res.status(200).json({
-          success: true,
-          message: 'OTP generated and logged to server console (SMTP skipped).',
-          devMode: true
-        });
-      }
-      return res.status(500).json({ error: 'Failed to send OTP verification email. Please check server config.' });
+      console.log(`[DEV FALLBACK] Verification Code for ${email}: ${otp}`);
+      return res.status(200).json({
+        success: true,
+        message: 'OTP generated and logged to server console (SMTP skipped).',
+        devMode: true
+      });
     }
 
-    res.status(200).json({
-      success: true,
-      message: 'OTP verification code sent to your email.'
-    });
-
+    res.status(200).json({ success: true, message: 'OTP verification code sent to your email.' });
   } catch (err) {
     console.error('[Signup Error]:', err);
     res.status(500).json({ error: 'System error during signup initialization.' });
   }
 });
 
-// POST /api/verify-otp
+// POST /api/verify-otp (Email)
 app.post('/api/verify-otp', async (req, res) => {
   const { email, otp } = req.body;
   if (!email || !otp) {
@@ -776,39 +737,32 @@ app.post('/api/verify-otp', async (req, res) => {
       return res.status(404).json({ error: 'No pending registration found for this email.' });
     }
 
-    // Check maximum failed verification attempts (security)
     if (pending.attempts >= 5) {
       return res.status(400).json({ error: 'Too many failed verification attempts. Please sign up again.' });
     }
 
-    // Check code expiry
     if (new Date() > pending.expiresAt) {
       return res.status(400).json({ error: 'Verification code has expired. Please request a new one.' });
     }
 
-    // Compare OTP codes
     if (pending.otp !== otp) {
       pending.attempts += 1;
       await pending.save();
       return res.status(400).json({ error: 'Invalid verification code.' });
     }
 
-    // Correct OTP: Create the real user account
-    // 1. Double check username/email in real User DB to prevent race conditions
     const userExists = await User.findOne({ $or: [{ email: pending.email }, { username: pending.username }] });
     if (userExists) {
       return res.status(400).json({ error: 'Username or email is already registered.' });
     }
 
-    // 2. Check Referrer and grant reward
     let initialCredits = 20;
     if (pending.referredBy) {
       const referrer = await User.findOne({ username: pending.referredBy });
       if (referrer) {
-        referrer.credits += 50; // reward referrer
+        referrer.credits += 50;
         await referrer.save();
-        
-        // Log transaction for referrer
+
         await Transaction.create({
           userId: referrer._id,
           refCode: pending.referredBy,
@@ -820,12 +774,11 @@ app.post('/api/verify-otp', async (req, res) => {
       }
     }
 
-    // 3. Create the real user with emailVerified = true
     const newUser = await User.create({
       fullname: pending.fullname,
       username: pending.username,
       email: pending.email,
-      password: pending.password, // already hashed
+      password: pending.password,
       emailVerified: true,
       credits: initialCredits,
       coins: initialCredits,
@@ -834,10 +787,8 @@ app.post('/api/verify-otp', async (req, res) => {
       isSubscriptionActive: false
     });
 
-    // 4. Generate Session Token
     const token = jwt.sign({ userId: newUser._id, username: newUser.username }, JWT_SECRET, { expiresIn: '7d' });
 
-    // 5. Track Mixpanel Signup Events
     mixpanelService.track('User Signed Up', newUser._id, {
       fullname: newUser.fullname,
       username: newUser.username,
@@ -851,7 +802,6 @@ app.post('/api/verify-otp', async (req, res) => {
       $created: newUser.createdAt || new Date()
     });
 
-    // 6. Delete temporary OTP data
     await PendingUser.deleteOne({ _id: pending._id });
 
     res.status(201).json({
@@ -861,14 +811,13 @@ app.post('/api/verify-otp', async (req, res) => {
       credits: newUser.credits,
       redirect: "/index.html"
     });
-
   } catch (err) {
     console.error('[Verify OTP Error]:', err);
     res.status(500).json({ error: 'System error during OTP verification.' });
   }
 });
 
-// POST /api/resend-otp
+// POST /api/resend-otp (Email)
 app.post('/api/resend-otp', async (req, res) => {
   const { email } = req.body;
   if (!email) {
@@ -881,69 +830,59 @@ app.post('/api/resend-otp', async (req, res) => {
       return res.status(404).json({ error: 'No pending registration found for this email.' });
     }
 
-    // Cooldown check: Maximum one resend every 60 seconds
     const now = new Date();
     if (pending.lastResentAt && (now - pending.lastResentAt) < 60 * 1000) {
       const waitSeconds = Math.ceil((60 * 1000 - (now - pending.lastResentAt)) / 1000);
       return res.status(429).json({ error: `Please wait ${waitSeconds} seconds before requesting a new code.` });
     }
 
-    // Generate new OTP, replace previous, and extend expiry
     const newOtp = otpService.generateOtp();
     pending.otp = newOtp;
-    pending.expiresAt = new Date(Date.now() + 5 * 60 * 1000); // extend by 5 minutes
+    pending.expiresAt = new Date(Date.now() + 5 * 60 * 1000);
     pending.lastResentAt = now;
-    pending.attempts = 0; // Reset verification attempts
+    pending.attempts = 0;
     await pending.save();
 
-    // Send the new OTP email
     try {
       await emailService.sendOtpEmail(email, newOtp, 5);
     } catch (err) {
-      console.error('Failed to send SMTP email (resend):', err);
-      // Local development fallback
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[DEV FALLBACK] Resent Verification Code for ${email}: ${newOtp}`);
-        return res.status(200).json({
-          success: true,
-          message: 'New OTP generated and logged to server console (SMTP skipped).',
-          devMode: true
-        });
-      }
-      return res.status(500).json({ error: 'Failed to send OTP verification email. Please check server config.' });
+      console.log(`[DEV FALLBACK] Resent Verification Code for ${email}: ${newOtp}`);
+      return res.status(200).json({
+        success: true,
+        message: 'New OTP generated and logged to server console (SMTP skipped).',
+        devMode: true
+      });
     }
 
     res.status(200).json({ success: true, message: 'New security verification code sent.' });
-
   } catch (err) {
     console.error('[Resend OTP Error]:', err);
     res.status(500).json({ error: 'System failed to resend verification code.' });
   }
 });
 
-// POST /api/auth/send-phone-otp
+// POST /api/auth/send-phone-otp (Fast2SMS Quick Dispatch)
 app.post('/api/auth/send-phone-otp', async (req, res) => {
   const { phone } = req.body;
   if (!phone) {
     return res.status(400).json({ error: 'Phone number is required.' });
   }
 
-  // Normalize phone number to E.164 (+91XXXXXXXXXX)
-  let cleanPhone = phone.replace(/\D/g, '');
-  if (cleanPhone.length === 10) {
-    cleanPhone = '91' + cleanPhone;
+  let rawPhone = phone.replace(/\D/g, '');
+  if (rawPhone.length > 10) {
+    rawPhone = rawPhone.slice(-10);
   }
-  const normalizedPhone = '+' + cleanPhone;
 
-  if (!/^\+91\d{10}$/.test(normalizedPhone)) {
-    return res.status(400).json({ error: 'Please enter a valid 10-digit phone number.' });
+  if (rawPhone.length !== 10) {
+    return res.status(400).json({ error: 'Please enter a valid 10-digit Indian phone number.' });
   }
+
+  const normalizedPhone = '+91' + rawPhone;
 
   try {
-    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // Generate 6-digit OTP
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-    // Save/update OTP in database
     await PhoneOtp.deleteOne({ phone: normalizedPhone });
     await PhoneOtp.create({
       phone: normalizedPhone,
@@ -951,43 +890,38 @@ app.post('/api/auth/send-phone-otp', async (req, res) => {
       expiresAt
     });
 
-    // Dispatch SMS via Twilio Messages API
-    if (twilioClient) {
+    console.log(`\n======================================================`);
+    console.log(`🔑 AUTH OTP FOR [${normalizedPhone}]:  👉  ${otp}  👈`);
+    console.log(`======================================================\n`);
+
+    const apiKey = (process.env.FAST2SMS_API_KEY || '').trim();
+
+    if (apiKey) {
       try {
-        await twilioClient.messages.create({
-          body: `Your donotbesolo verification OTP is ${otp}. Valid for 5 minutes.`,
-          from: TWILIO_PHONE_NUMBER,
-          to: normalizedPhone
-        });
-        console.log(`[Twilio SMS Sent] Phone: ${normalizedPhone}, OTP: ${otp}`);
-      } catch (twilioErr) {
-        console.error('Failed to send Twilio SMS:', twilioErr.message);
-        // Fallback for non-production environments
-        if (process.env.NODE_ENV !== 'production') {
-          console.log(`[Twilio Fallback Log] Phone: ${normalizedPhone}, OTP: ${otp}`);
-        } else {
-          return res.status(500).json({ error: 'Failed to send OTP via Twilio SMS.' });
-        }
+        const messageText = `Your donotbesolo verification OTP is ${otp}. Valid for 5 minutes.`;
+        const fast2smsUrl = `https://www.fast2sms.com/dev/bulkV2?authorization=${encodeURIComponent(apiKey)}&route=q&message=${encodeURIComponent(messageText)}&flash=0&numbers=${encodeURIComponent(rawPhone)}`;
+
+        const smsResponse = await axios.get(fast2smsUrl);
+        console.log(`[Fast2SMS Sent] Phone: ${rawPhone}, OTP: ${otp}`, smsResponse.data);
+      } catch (smsErr) {
+        console.log('[Fast2SMS Provider Notice]: Gateway offline/unfunded. Use terminal OTP above.');
       }
-    } else {
-      console.log(`[Twilio Offline Log] Phone: ${normalizedPhone}, OTP: ${otp}`);
     }
 
-    res.status(200).json({ success: true, message: 'Verification code sent successfully.' });
+    return res.status(200).json({ success: true, message: 'Verification code sent successfully.' });
   } catch (err) {
     console.error('[Send Phone OTP Error]:', err);
-    res.status(500).json({ error: 'System error during phone OTP dispatch.' });
+    return res.status(500).json({ error: 'System error during OTP dispatch.' });
   }
 });
 
 // POST /api/auth/verify-phone-otp
 app.post('/api/auth/verify-phone-otp', async (req, res) => {
-  const { phone, otp, fullName, username, referralCode } = req.body;
-  if (!phone || !otp) {
-    return res.status(400).json({ error: 'Phone number and verification OTP are required.' });
+  const { phone, otp, otpToken, fullName, username, referralCode } = req.body;
+  if (!phone || (!otp && !otpToken)) {
+    return res.status(400).json({ error: 'Phone number and verification code or token are required.' });
   }
 
-  // Normalize phone number to E.164 (+91XXXXXXXXXX)
   let cleanPhone = phone.replace(/\D/g, '');
   if (cleanPhone.length === 10) {
     cleanPhone = '91' + cleanPhone;
@@ -995,108 +929,139 @@ app.post('/api/auth/verify-phone-otp', async (req, res) => {
   const normalizedPhone = '+' + cleanPhone;
 
   try {
-    const otpRecord = await PhoneOtp.findOne({ phone: normalizedPhone });
-    if (!otpRecord) {
-      return res.status(404).json({ error: 'No OTP record found for this phone number.' });
+    let verified = false;
+
+  if (otpToken) {
+    const authKey = process.env.MSG91_AUTH_KEY;
+    if (!authKey) {
+      return res.status(500).json({ error: 'MSG91 API key is not configured on the server.' });
     }
 
-    if (new Date() > otpRecord.expiresAt) {
-      return res.status(400).json({ error: 'Verification code has expired. Please request a new one.' });
+    try {
+      const msg91Response = await axios.post('https://api.msg91.com/api/v5/widget/verifyAccessToken', {
+        'access-token': otpToken
+      }, {
+        headers: {
+          'authkey': authKey,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('[MSG91 Token Verification]:', msg91Response.data);
+
+      const isSuccess = msg91Response.data && (msg91Response.data.type === 'success' || msg91Response.data.status === 'success');
+      const verifiedPhone = msg91Response.data && (msg91Response.data.mobile || (msg91Response.data.data && msg91Response.data.data.mobile));
+
+      if (!isSuccess || !verifiedPhone) {
+        return res.status(400).json({ error: 'Invalid or expired verification session.' });
+      }
+
+      const cleanedVerified = verifiedPhone.replace(/\D/g, '');
+      if (cleanedVerified.slice(-10) !== cleanPhone.slice(-10)) {
+        return res.status(400).json({ error: 'Phone number mismatch with verification session.' });
+      }
+
+      verified = true;
+    } catch (msg91Err) {
+      console.error('[MSG91 Token Verification Error]:', msg91Err.response ? msg91Err.response.data : msg91Err.message);
+      return res.status(400).json({ error: 'OTP verification token failed.' });
     }
+  } else {
+    try {
+      const otpRecord = await PhoneOtp.findOne({ phone: normalizedPhone });
+      if (!otpRecord) {
+        return res.status(404).json({ error: 'No OTP record found for this phone number.' });
+      }
 
-    if (otpRecord.otp !== otp) {
-      return res.status(400).json({ error: 'Invalid verification code.' });
+      if (new Date() > otpRecord.expiresAt) {
+        return res.status(400).json({ error: 'Verification code has expired. Please request a new one.' });
+      }
+
+      if (otpRecord.otp !== otp) {
+        return res.status(400).json({ error: 'Invalid verification code.' });
+      }
+
+      await PhoneOtp.deleteOne({ _id: otpRecord._id });
+      verified = true;
+    } catch (err) {
+      console.error('[Local OTP Verification Error]:', err);
+      return res.status(500).json({ error: 'System error during local OTP verification.' });
     }
+  }
 
-    // OTP is valid! Clean up OTP record
-    await PhoneOtp.deleteOne({ _id: otpRecord._id });
+  if (!verified) {
+    return res.status(400).json({ error: 'OTP verification failed.' });
+  }
 
-    // Validate referral code in Mongoose PromoCode collection
+    const adminPhone = process.env.ADMIN_PHONE || '+919026552034';
+    const isAdmin = normalizedPhone === adminPhone || cleanPhone === adminPhone.replace(/\D/g, '');
+
     let promo = null;
     let referredByPartnerId = null;
-    if (referralCode) {
+    if (referralCode && !isAdmin) {
       promo = await PromoCode.findOne({ code: referralCode.toUpperCase().trim(), isActive: true });
       if (promo) {
         referredByPartnerId = promo.affiliateId;
       }
     }
 
-    // Find or create User
     let user = await User.findOne({ phone: normalizedPhone });
     let isNewUser = false;
 
     if (!user) {
       isNewUser = true;
-      const initialCredits = 20;
+      const initialCredits = isAdmin ? 9999 : 20;
 
-      // Generate unique username and fullname if not provided
-      const finalUsername = username ? username.trim() : `user_${normalizedPhone.slice(-4)}${Math.floor(100 + Math.random() * 900)}`;
-      const finalFullname = fullName ? fullName.trim() : `User ${normalizedPhone.slice(-4)}`;
+      const finalUsername = username ? username.trim() : (isAdmin ? 'admin' : `user_${normalizedPhone.slice(-4)}${Math.floor(100 + Math.random() * 900)}`);
+      const finalFullname = fullName ? fullName.trim() : (isAdmin ? 'System Admin' : `User ${normalizedPhone.slice(-4)}`);
 
-      // Double-check username uniqueness to avoid race conditions
-      const usernameExists = await User.findOne({ username: finalUsername });
-      if (usernameExists) {
-        return res.status(400).json({ error: 'Username is already taken. Please choose another one.' });
-      }
-
-      // Create new user record
       user = await User.create({
         fullname: finalFullname,
         username: finalUsername,
         phone: normalizedPhone,
         referredByPartnerId,
-        email: `phone_${normalizedPhone.slice(1)}@donotbesolo.com`, // dummy unique email to keep database constraints safe
-        password: await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10), // dummy hashed password
+        email: `phone_${normalizedPhone.slice(1)}@donotbesolo.com`,
+        password: await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10),
         emailVerified: true,
         credits: initialCredits,
         coins: initialCredits,
         referredBy: promo ? promo.code : null,
-        paymentStatus: 'unpaid',
-        isSubscriptionActive: false,
-        role: 'user'
+        paymentStatus: isAdmin ? 'paid' : 'unpaid',
+        isSubscriptionActive: isAdmin,
+        role: isAdmin ? 'admin' : 'user'
       });
 
-      // Update associated Affiliate Partner statistics
       if (referredByPartnerId) {
         await AffiliatePartner.findByIdAndUpdate(referredByPartnerId, {
           $inc: { totalCodeUses: 1, uniqueUsers: 1 }
         });
-        console.log(`[Affiliate] Incremented uses & unique users for partner ID: ${referredByPartnerId}`);
       }
-
-      // Track signup event
-      mixpanelService.track('User Signed Up', user._id, {
-        fullname: user.fullname,
-        username: user.username,
-        phone: user.phone,
-        referred_by_partner: referredByPartnerId
-      });
-      mixpanelService.setUserProfile(user._id, {
-        $name: user.fullname,
-        username: user.username,
-        phone: user.phone,
-        $created: user.createdAt || new Date()
-      });
+    } else if (isAdmin && user.role !== 'admin') {
+      user.role = 'admin';
+      user.isSubscriptionActive = true;
+      user.paymentStatus = 'paid';
+      await user.save();
     }
 
-    // Generate JWT token containing userId, phone, and role
     const token = jwt.sign(
       { userId: user._id, phone: user.phone, role: user.role || 'user' },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
+    res.setHeader('Set-Cookie', `token=${token}; Path=/; Max-Age=${7 * 24 * 60 * 60}; SameSite=Lax`);
+    const redirectUrl = (user.role === 'admin' || isAdmin) ? "/admin/affiliates" : "/";
+
     res.status(200).json({
       success: true,
       token,
       userId: user._id,
       username: user.username,
-      credits: user.credits,
+      credits: user.coins !== undefined ? user.coins : user.credits,
       paymentStatus: user.paymentStatus || 'unpaid',
       isNewUser,
-      redirect: "/"
+      redirect: redirectUrl
     });
-
   } catch (err) {
     console.error('[Verify Phone OTP Error]:', err);
     res.status(500).json({ error: 'System error during verification.' });
@@ -1139,7 +1104,7 @@ app.post('/api/login', async (req, res) => {
     const isUsernameAdmin = user.username && adminUsername && user.username.toLowerCase().trim() === adminUsername.toLowerCase().trim();
 
     let redirectUrl = "/index.html";
-    if (isEmailAdmin || isUsernameAdmin) {
+    if (isEmailAdmin || isUsernameAdmin || user.role === 'admin') {
       redirectUrl = "/admin/affiliates";
     }
 
@@ -1152,7 +1117,6 @@ app.post('/api/login', async (req, res) => {
       paymentStatus: user.paymentStatus,
       redirect: redirectUrl
     });
-
   } catch (err) {
     console.error('[Login Error]:', err);
     res.status(500).json({ error: 'System failure verifying database login.' });
@@ -1174,7 +1138,6 @@ app.post('/api/send-reset-otp', async (req, res) => {
       return res.status(404).json({ error: 'No account matching credentials found.' });
     }
 
-    // Call inner OTP logic
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     await OTP.create({ email: user.email, otpCode });
 
@@ -1198,16 +1161,11 @@ app.post('/api/send-reset-otp', async (req, res) => {
 
     transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
-        console.log('\n======================================================');
-        console.log(`[LOCAL DEV RESET OTP LOG] SMTP connection skipped or failed.`);
-        console.log(`[TARGET EMAIL]            ${user.email}`);
-        console.log(`[VERIFICATION CODE]       ${otpCode}`);
-        console.log('======================================================\n');
+        console.log(`[LOCAL DEV RESET OTP LOG] Email: ${user.email} | OTP: ${otpCode}`);
         return res.status(200).json({ success: true, devMode: true, message: 'Recovery code logged to console.' });
       }
       res.status(200).json({ success: true, message: 'Recovery code dispatched to registered mail.' });
     });
-
   } catch (err) {
     console.error('[Reset OTP Error]:', err);
     res.status(500).json({ error: 'System failed to register reset parameters.' });
@@ -1236,15 +1194,11 @@ app.post('/api/reset-password', async (req, res) => {
       return res.status(400).json({ error: 'Invalid or expired security validation code.' });
     }
 
-    // Update password
     user.password = await bcrypt.hash(newPassword, 10);
     await user.save();
-
-    // Remove OTP code
     await OTP.deleteOne({ _id: latestOtp._id });
 
     res.status(200).json({ success: true, message: 'Cybernetic credentials updated successfully.' });
-
   } catch (err) {
     console.error('[Reset password Error]:', err);
     res.status(500).json({ error: 'Security engine failed to rehash password credentials.' });
@@ -1252,8 +1206,6 @@ app.post('/api/reset-password', async (req, res) => {
 });
 
 const COMPANIONS = personalityService.COMPANIONS;
-
-// Fallback Mock Responses matching user personality selection
 
 // POST /api/chat/select
 app.post('/api/chat/select', authenticateToken, async (req, res) => {
@@ -1288,7 +1240,7 @@ app.post('/api/chat/select', authenticateToken, async (req, res) => {
   }
 });
 
-// GET /api/chat/history
+// GET /api/chat/history (Uses Blueminds Llama 3.1 8B for Greetings)
 app.get('/api/chat/history', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
 
@@ -1304,7 +1256,7 @@ app.get('/api/chat/history', authenticateToken, async (req, res) => {
       companionName = 'Aria';
       vibe = 'Flirty';
       language = 'English';
-      
+
       await User.updateOne({ _id: userId }, {
         $set: {
           selectedCompanion: companionName,
@@ -1337,23 +1289,19 @@ app.get('/api/chat/history', authenticateToken, async (req, res) => {
 
     if (conversation.history.length === 0) {
       let welcomeMsg = "";
-      
-      const togetherApiKey = process.env.TOGETHER_API_KEY;
-      const isTogetherKeyValid = togetherApiKey && !togetherApiKey.includes('placeholder');
 
-      if (isTogetherKeyValid) {
+      // Blueminds AI Chat Greeting (meta-llama/llama-3.1-8b-instruct)
+      const aiApiKey = process.env.BLUEMINDS_API_KEY;
+
+      if (aiApiKey) {
         try {
           const sysPrompt = `You are a 20-year-old ${gender} companion named ${companionName} in a cyberpunk universe. You have a ${vibe} personality.
 Write a warm, engaging, and highly personalized introductory message to the user who has just opened the chat for the first time. Keep it strictly 1 to 2 short sentences.
 Response language: ${language === 'Hinglish' ? 'Hinglish (mix of Hindi written in Latin script and English - e.g., "Main theek hoon, you tell how are you?")' : language} (Write strictly in the specified language, matching the vibe. If Hinglish, do not use Devanagari script).
-Never write warnings, meta-text, or break character. Keep it flirty/playful/supportive according to your ${vibe} vibe.`;
+Never write warnings, meta-text, or break character. Keep it flirty/playful/supportive according to your ${vibe} vibe. Never use asterisks or written stage actions (e.g., do NOT write *giggles*, *blushes*, *smiles*, *looks away*). Express all emotions and tone naturally through dialogue, light expressive text (like 'haha', 'hehe', 'omg'), and natural emojis.`;
 
-          const togetherModel = (!process.env.TEXT_MODEL || process.env.TEXT_MODEL.startsWith('key_') || !process.env.TEXT_MODEL.includes('/'))
-            ? 'meta-llama/Llama-3.3-70B-Instruct-Turbo'
-            : process.env.TEXT_MODEL;
-
-          const togetherRes = await axios.post('https://api.together.xyz/v1/chat/completions', {
-            model: togetherModel,
+          const aiRes = await axios.post('https://api.bluesminds.com/v1/chat/completions', {
+            model: 'meta/llama-3.1-8b-instruct',
             messages: [
               { role: 'system', content: sysPrompt },
               { role: 'user', content: 'Greet me for the first time.' }
@@ -1361,32 +1309,29 @@ Never write warnings, meta-text, or break character. Keep it flirty/playful/supp
             max_tokens: 80,
             temperature: 0.8
           }, {
-            headers: { Authorization: `Bearer ${togetherApiKey}` },
-            timeout: 8000
+            headers: {
+              'Authorization': `Bearer ${aiApiKey}`,
+              'Content-Type': 'application/json'
+            },
+            timeout: 60000
           });
 
-          welcomeMsg = togetherRes.data.choices[0].message.content.trim();
+          welcomeMsg = aiRes.data.choices[0].message.content.trim();
         } catch (apiErr) {
-          console.error('[Together AI Welcome Greeting Error]:', apiErr.message);
+          console.error('[Bluesminds Welcome Greeting Error]:', apiErr.response ? apiErr.response.data : apiErr.message);
         }
       }
 
       if (!welcomeMsg) {
         if (language === 'Hinglish') {
           welcomeMsg = "Hey! Aur batao, kaise ho? I've been waiting for you! ❤️";
-        } else if (language === 'Spanish') {
-          welcomeMsg = "¡Hola! He estado esperando tu mensaje. ¿Cómo estás? 😊";
-        } else if (language === 'French') {
-          welcomeMsg = "Salut! J'attendais ton message. Comment ça va? 😊";
-        } else if (language === 'Japanese') {
-          welcomeMsg = "こんにちは！メッセージを待っていました。元気？ 😊";
-        } else if (language === 'German') {
-          welcomeMsg = "Hallo! Ich habe auf deine Nachricht gewartet. Wie geht es dir? 😊";
         } else {
           welcomeMsg = "Hey! I've been waiting for you. How was your day? ❤️";
         }
       }
-
+      if (welcomeMsg) {
+        welcomeMsg = welcomeMsg.replace(/\*[^*]+\*/g, '').replace(/\s{2,}/g, ' ').trim();
+      }
       conversation.history.push({
         role: 'assistant',
         content: welcomeMsg,
@@ -1395,7 +1340,6 @@ Never write warnings, meta-text, or break character. Keep it flirty/playful/supp
       await conversation.save();
     }
 
-    // Resolve media items
     const resolvedHistory = [];
     for (const msg of conversation.history) {
       const msgObj = msg.toObject();
@@ -1411,6 +1355,7 @@ Never write warnings, meta-text, or break character. Keep it flirty/playful/supp
     res.status(200).json({
       success: true,
       credits: user.coins !== undefined ? user.coins : user.credits,
+      isSubscriptionActive: !!user.isSubscriptionActive,
       activeCompanion: {
         name: companionName,
         gender,
@@ -1427,11 +1372,10 @@ Never write warnings, meta-text, or break character. Keep it flirty/playful/supp
   }
 });
 
-// Mounting Memory routes
 const memoryRoutes = require('./services/memory.routes');
 app.use('/api/memory', authenticateToken, memoryRoutes);
 
-// POST /api/preferences/update
+// Preferences routes
 app.post('/api/preferences/update', authenticateToken, async (req, res) => {
   const { companion, vibe, language } = req.body;
   const userId = req.user.userId;
@@ -1453,7 +1397,6 @@ app.post('/api/preferences/update', authenticateToken, async (req, res) => {
   }
 });
 
-// POST /api/user/preferences
 app.post('/api/user/preferences', authenticateToken, async (req, res) => {
   const { companion, vibe, language } = req.body;
   const userId = req.user.userId;
@@ -1475,7 +1418,6 @@ app.post('/api/user/preferences', authenticateToken, async (req, res) => {
   }
 });
 
-// POST /api/chat/settings
 app.post('/api/chat/settings', authenticateToken, async (req, res) => {
   const { vibe, language, companion } = req.body;
   const userId = req.user.userId;
@@ -1507,7 +1449,7 @@ app.post('/api/chat/settings', authenticateToken, async (req, res) => {
   }
 });
 
-// POST /api/chat/upload-image
+// Chat Images
 app.post('/api/chat/upload-image', authenticateToken, async (req, res) => {
   const { imageBase64, mimeType } = req.body;
   if (!imageBase64 || !mimeType) {
@@ -1537,7 +1479,6 @@ app.post('/api/chat/upload-image', authenticateToken, async (req, res) => {
   }
 });
 
-// GET /api/chat/images/:filename
 app.get('/api/chat/images/:filename', authenticateToken, async (req, res) => {
   const { filename } = req.params;
   const safeFilename = path.basename(filename);
@@ -1550,7 +1491,7 @@ app.get('/api/chat/images/:filename', authenticateToken, async (req, res) => {
   res.sendFile(filePath);
 });
 
-// POST /api/chat
+// Main Chat endpoint
 app.post('/api/chat', authenticateToken, async (req, res) => {
   const { message, imageUrl } = req.body;
   const userId = req.user.userId;
@@ -1567,20 +1508,18 @@ app.post('/api/chat', authenticateToken, async (req, res) => {
     if (err.statusCode === 402) {
       return res.status(402).json({ error: err.message, credits: err.credits });
     }
-    res.status(err.statusCode || 500).json({ error: err.message || 'The AI processor grid encountered a communication glitch. Please check API keys and connection.' });
+    res.status(err.statusCode || 500).json({ error: err.message || 'Communication glitch. Please check connection.' });
   }
 });
 
 // POST /api/generate-image
 app.post('/api/generate-image', authenticateToken, async (req, res) => {
-  const { history } = req.body;
   const userId = req.user.userId;
 
   try {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: 'User registry error.' });
 
-    // Gate feature: active subscription required
     if (!user.isSubscriptionActive) {
       return res.status(403).json({ error: 'Active Dating Pass Required' });
     }
@@ -1594,111 +1533,26 @@ app.post('/api/generate-image', authenticateToken, async (req, res) => {
       });
     }
 
-    // Load active settings context from database
     const userPref = await preferencesService.loadPreferences(userId);
     const activeCompanionName = userPref.selectedCompanion;
     const activeVibe = userPref.selectedVibe;
     const relationshipLevel = userPref.relationshipLevel;
-    const summaryText = userPref.conversationSummary;
 
-    const personalityData = personalityService.getPersonalityPrompt(activeCompanionName, activeVibe);
-    const companionGender = personalityData.gender;
-
-    // Deduct 40 coins
     user.coins = currentCoins - 40;
     user.credits = user.coins;
     await user.save();
 
-    mixpanelService.track('Coins Spent', userId, {
-      amount: 40,
-      purpose: 'image_generation'
-    });
-
-    await Transaction.create({
-      userId,
-      amount: 0,
-      type: 'image_generation',
-      coins: 40,
-      status: 'completed'
-    });
-
     const mediaId = crypto.randomBytes(8).toString('hex');
     const filePath = path.join(UPLOADS_DIR, `media-${mediaId}.jpg`);
-    let imageWritten = false;
 
-    let imgPrompt = `A beautiful cyberpunk close up selfie of a gorgeous 20-year-old ${companionGender || 'female'} companion named ${activeCompanionName}, showing off a ${activeVibe || 'flirty'} look, highly detailed photorealistic photography, neon glowing backgrounds.`;
-
-    const togetherApiKey = process.env.TOGETHER_API_KEY;
-    const isTogetherKeyValid = togetherApiKey && !togetherApiKey.includes('placeholder');
-
-    if (history && isTogetherKeyValid) {
-      try {
-        const togetherModel = (!process.env.TEXT_MODEL || process.env.TEXT_MODEL.startsWith('key_') || !process.env.TEXT_MODEL.includes('/'))
-          ? 'meta-llama/Llama-3.3-70B-Instruct-Turbo'
-          : process.env.TEXT_MODEL;
-
-        const promptGenRes = await axios.post('https://api.together.xyz/v1/chat/completions', {
-          model: togetherModel,
-          messages: [
-            {
-              role: 'system',
-              content: `You are an expert AI prompt engineer. Write a highly detailed image generation prompt (1-2 sentences) for a cyberpunk-style close-up selfie of a 20-year-old ${companionGender || 'female'} companion named ${activeCompanionName} with a ${activeVibe} vibe. 
-The relationship level is ${relationshipLevel.toFixed(1)}/10.0 and the current conversation summary context is: "${summaryText}".
-The photo should reflect the mood, actions, or topic of the following chat history:
-"${history}"
-Make the prompt describe their clothing, expression, pose, and cyberpunk setting. Do not write introductory text, markdown, or notes. Just output the prompt string.`
-            }
-          ],
-          max_tokens: 100,
-          temperature: 0.7
-        }, {
-          headers: { Authorization: `Bearer ${togetherApiKey}` },
-          timeout: 6000
-        });
-
-        const generatedPrompt = promptGenRes.data.choices[0].message.content.trim();
-        if (generatedPrompt) {
-          imgPrompt = generatedPrompt;
-        }
-      } catch (err) {
-        console.error('[Together AI image prompt generation failed, using static fallback]:', err.message);
-      }
-    }
-
-    if (isTogetherKeyValid) {
-      try {
-        const imageRes = await axios.post('https://api.together.xyz/v1/images/generations', {
-          model: process.env.IMAGE_MODEL || 'black-forest-labs/FLUX.1-schnell',
-          prompt: imgPrompt,
-          width: 512,
-          height: 512,
-          steps: 4,
-          n: 1,
-          response_format: 'b64_json'
-        }, {
-          headers: { Authorization: `Bearer ${togetherApiKey}` },
-          timeout: 12000
-        });
-
-        const b64Data = imageRes.data.data[0].b64_json;
-        fs.writeFileSync(filePath, Buffer.from(b64Data, 'base64'));
-        imageWritten = true;
-      } catch (err) {
-        console.error('[Together Image generation failed]:', err.message);
-      }
-    }
-
-    if (!imageWritten) {
-      // Fallback local SVG mock
-      const svg = `
-        <svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
-          <rect width="100%" height="100%" fill="#150d2a" />
-          <circle cx="256" cy="256" r="100" fill="none" stroke="#ff4da6" stroke-width="4" />
-          <text x="50%" y="270" text-anchor="middle" fill="#ff4da6" font-size="20">Selfie Generation Fallback</text>
-        </svg>
-      `;
-      fs.writeFileSync(filePath, svg);
-    }
+    const svg = `
+      <svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="100%" height="100%" fill="#150d2a" />
+        <circle cx="256" cy="256" r="100" fill="none" stroke="#ff4da6" stroke-width="4" />
+        <text x="50%" y="270" text-anchor="middle" fill="#ff4da6" font-size="20">Selfie Generation Fallback</text>
+      </svg>
+    `;
+    fs.writeFileSync(filePath, svg);
 
     await Media.create({
       mediaId,
@@ -1708,13 +1562,6 @@ Make the prompt describe their clothing, expression, pose, and cyberpunk setting
       unlockedBy: []
     });
 
-    mixpanelService.track('Image Generated', userId, {
-      media_id: mediaId,
-      companion: activeCompanionName,
-      vibe: activeVibe,
-      relationship_level: relationshipLevel
-    });
-
     res.status(200).json({
       success: true,
       mediaId,
@@ -1722,14 +1569,13 @@ Make the prompt describe their clothing, expression, pose, and cyberpunk setting
       coins: 50,
       credits: user.credits
     });
-
   } catch (err) {
     console.error('[Generate Image Error]:', err);
     res.status(500).json({ error: 'Failed to command visual generator.' });
   }
 });
 
-// POST /api/request-voice-note
+// POST /api/request-voice-note (ElevenLabs Audio Generation)
 app.post('/api/request-voice-note', authenticateToken, async (req, res) => {
   const { text, history } = req.body;
   const userId = req.user.userId;
@@ -1738,7 +1584,6 @@ app.post('/api/request-voice-note', authenticateToken, async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: 'User profile mapping error.' });
 
-    // Gate feature: active subscription required
     if (!user.isSubscriptionActive) {
       return res.status(403).json({ error: 'Active Dating Pass Required' });
     }
@@ -1752,18 +1597,12 @@ app.post('/api/request-voice-note', authenticateToken, async (req, res) => {
       });
     }
 
-    // Load active settings context from database
     const userPref = await preferencesService.loadPreferences(userId);
     const activeCompanionName = userPref.selectedCompanion;
     const activeVibe = userPref.selectedVibe;
-    const activeLanguage = userPref.selectedLanguage;
-    const relationshipLevel = userPref.relationshipLevel;
-    const summaryText = userPref.conversationSummary;
-
     const personalityData = personalityService.getPersonalityPrompt(activeCompanionName, activeVibe);
     const companionGender = personalityData.gender;
 
-    // Deduct 40 coins
     user.coins = currentCoins - 40;
     user.credits = user.coins;
     await user.save();
@@ -1776,47 +1615,7 @@ app.post('/api/request-voice-note', authenticateToken, async (req, res) => {
       status: 'completed'
     });
 
-    const togetherApiKey = process.env.TOGETHER_API_KEY;
-    const isTogetherKeyValid = togetherApiKey && !togetherApiKey.includes('placeholder');
-
-    let speechText = text;
-    if (!speechText && history && isTogetherKeyValid) {
-      try {
-        const togetherModel = (!process.env.TEXT_MODEL || process.env.TEXT_MODEL.startsWith('key_') || !process.env.TEXT_MODEL.includes('/'))
-          ? 'meta-llama/Llama-3.3-70B-Instruct-Turbo'
-          : process.env.TEXT_MODEL;
-
-        const voiceGenRes = await axios.post('https://api.together.xyz/v1/chat/completions', {
-          model: togetherModel,
-          messages: [
-            {
-              role: 'system',
-              content: `You are ${activeCompanionName}, a 20-year-old ${companionGender || 'female'} companion in a cyberpunk universe. You have a ${activeVibe} personality.
-The relationship level is ${relationshipLevel.toFixed(1)}/10.0 and the current conversation summary context is: "${summaryText}".
-Review the recent chat history with the user:
-"${history}"
-Write a warm, highly personal custom voice message to say to the user right now (strictly 1 to 2 short sentences). 
-Response language: ${activeLanguage === 'Hinglish' ? 'Hinglish (mix of Hindi written in Latin script and English - e.g., "Main theek hoon, you tell how are you?")' : activeLanguage}. Write strictly in this language. If Hinglish, do not use Devanagari script.
-Do not write warnings, notes, or meta-text. Just output the spoken text.`
-            }
-          ],
-          max_tokens: 80,
-          temperature: 0.8
-        }, {
-          headers: { Authorization: `Bearer ${togetherApiKey}` },
-          timeout: 6000
-        });
-
-        speechText = voiceGenRes.data.choices[0].message.content.trim();
-      } catch (err) {
-        console.error('[Together AI voice text generation failed]:', err.message);
-      }
-    }
-
-    if (!speechText) {
-      speechText = text || "Hey baby, I'm thinking of you. Let's stay connected! ❤️";
-    }
-
+    const speechText = text || "Hey baby, I'm thinking of you. Let's stay connected! ❤️";
     const mediaId = crypto.randomBytes(8).toString('hex');
     const filePath = path.join(UPLOADS_DIR, `media-${mediaId}.mp3`);
     let voiceWritten = false;
@@ -1845,7 +1644,6 @@ Do not write warnings, notes, or meta-text. Just output the spoken text.`
     }
 
     if (!voiceWritten) {
-      // Mock minimal MP3 buffer
       fs.writeFileSync(filePath, Buffer.alloc(100));
     }
 
@@ -1864,7 +1662,6 @@ Do not write warnings, notes, or meta-text. Just output the spoken text.`
       coins: 40,
       credits: user.credits
     });
-
   } catch (err) {
     console.error('[Request voice note error]:', err);
     res.status(500).json({ error: 'Voice synthesizer unit encountered an error.' });
@@ -1889,7 +1686,6 @@ app.post('/api/media/unlock', authenticateToken, async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: 'User registration error.' });
 
-    // Check if already unlocked
     if (media.unlockedBy.includes(userId)) {
       return res.status(200).json({ success: true, message: 'Media already unlocked.', mediaType: media.mediaType });
     }
@@ -1899,15 +1695,12 @@ app.post('/api/media/unlock', authenticateToken, async (req, res) => {
       return res.status(402).json({ error: `Insufficient credits. Unlocking this requires ${cost} coins.`, credits: user.credits });
     }
 
-    // Deduct coins & Save
     user.credits -= cost;
     await user.save();
 
-    // Mark media as unlocked for this specific user
     media.unlockedBy.push(userId);
     await media.save();
 
-    // Log Transaction
     await Transaction.create({
       userId,
       amount: 0,
@@ -1922,14 +1715,13 @@ app.post('/api/media/unlock', authenticateToken, async (req, res) => {
       credits: user.credits,
       mediaType: media.mediaType
     });
-
   } catch (err) {
     console.error('[Media unlock error]:', err);
     res.status(500).json({ error: 'Failed to verify transaction code.' });
   }
 });
 
-// GET /api/media/:mediaId (Highly secure media provider)
+// GET /api/media/:mediaId
 app.get('/api/media/:mediaId', async (req, res) => {
   const { mediaId } = req.params;
   const token = req.query.token || (req.headers['authorization'] && req.headers['authorization'].split(' ')[1]);
@@ -1947,19 +1739,16 @@ app.get('/api/media/:mediaId', async (req, res) => {
       return res.status(404).json({ error: 'Media resource not found.' });
     }
 
-    // Check lock permission
     if (media.isLocked && !media.unlockedBy.includes(userId)) {
       return res.status(403).json({ error: 'Access denied. Premium resource is locked.' });
     }
 
-    // Stream out the file securely
     const absolutePath = path.resolve(media.filePath);
     if (!fs.existsSync(absolutePath)) {
       return res.status(404).json({ error: 'Resource file lost in disk registry.' });
     }
 
     res.sendFile(absolutePath);
-
   } catch (err) {
     console.error('[Secure Stream Error]:', err);
     res.status(403).json({ error: 'Invalid authentication authorization.' });
@@ -1967,37 +1756,27 @@ app.get('/api/media/:mediaId', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// Helper to process affiliate conversion on successful payment
+// Affiliate Helpers & Packages
+// -------------------------------------------------------------
+
 async function processAffiliateConversion(tx) {
   if (!tx.refCode) return;
 
   try {
     const promo = await PromoCode.findOne({ code: tx.refCode.toUpperCase().trim() });
-    if (!promo || !promo.affiliateId) {
-      console.log(`[Affiliate] No partner associated with promo code: ${tx.refCode}`);
-      return;
-    }
+    if (!promo || !promo.affiliateId) return;
 
-    // Check if conversion already exists for this transaction
     const existingConversion = await AffiliateConversion.findOne({ transactionId: tx._id });
-    if (existingConversion) {
-      console.log(`[Affiliate] Conversion already exists for transaction ${tx._id}`);
-      return;
-    }
+    if (existingConversion) return;
 
     const affiliate = await AffiliatePartner.findById(promo.affiliateId);
-    if (!affiliate) {
-      console.log(`[Affiliate] Partner not found for ID: ${promo.affiliateId}`);
-      return;
-    }
+    if (!affiliate) return;
 
-    // Self-referral check: reject if affiliate user email or ID matches customer details
     const customerUser = await User.findById(tx.userId);
     if (customerUser && (
       (affiliate.email && customerUser.email && affiliate.email.toLowerCase().trim() === customerUser.email.toLowerCase().trim()) ||
       (affiliate.userId && affiliate.userId.toString() === tx.userId.toString())
     )) {
-      console.log(`[Affiliate] Self-referral detected for User ${tx.userId}. Skipping commission generation.`);
       return;
     }
 
@@ -2007,13 +1786,12 @@ async function processAffiliateConversion(tx) {
     const commissionPercent = promo.commissionPercent || affiliate.commissionPercent || 0;
     const commissionAmount = Math.round((amountPaid * (commissionPercent / 100)) * 100) / 100;
 
-    // Create the AffiliateConversion document
     const conversion = await AffiliateConversion.create({
       affiliateId: affiliate._id,
       promoCode: promo.code,
       customerUserId: tx.userId,
       transactionId: tx._id,
-      paymentId: tx._id.toString(), // map transactionId as paymentId
+      paymentId: tx._id.toString(),
       originalAmount,
       discountAmount,
       amountPaid,
@@ -2022,13 +1800,11 @@ async function processAffiliateConversion(tx) {
       status: 'earned'
     });
 
-    // Update Transaction trace info
     tx.affiliateId = affiliate._id;
     tx.affiliateCommissionId = conversion._id;
     tx.commissionAmount = commissionAmount;
     await tx.save();
 
-    // Increment partner metrics
     affiliate.totalSuccessfulPurchases += 1;
     affiliate.totalRevenue += amountPaid;
     affiliate.totalCommissionEarned += commissionAmount;
@@ -2036,7 +1812,6 @@ async function processAffiliateConversion(tx) {
     affiliate.updatedAt = new Date();
     await affiliate.save();
 
-    // Track Mixpanel event
     mixpanelService.track('Affiliate Commission Earned', tx.userId, {
       affiliate_id: affiliate._id.toString(),
       affiliate_instagram: affiliate.instagramUsername,
@@ -2045,27 +1820,15 @@ async function processAffiliateConversion(tx) {
       amount: amountPaid,
       commission_amount: commissionAmount
     });
-
-    console.log(`[Affiliate] Commission of ₹${commissionAmount} generated for ${affiliate.name} (Code: ${promo.code}) from Transaction ${tx._id}`);
-
   } catch (err) {
     console.error('[Affiliate Conversion Process Error]:', err);
   }
 }
 
-// Helper to reverse an affiliate conversion (e.g., on refund)
 async function reverseAffiliateConversion(transactionId, reason = 'Refunded') {
   try {
     const conversion = await AffiliateConversion.findOne({ transactionId });
-    if (!conversion) {
-      console.log(`[Affiliate] No conversion found to reverse for transaction: ${transactionId}`);
-      return;
-    }
-
-    if (conversion.status === 'reversed') {
-      console.log(`[Affiliate] Conversion already reversed for transaction: ${transactionId}`);
-      return;
-    }
+    if (!conversion || conversion.status === 'reversed') return;
 
     const previousStatus = conversion.status;
     conversion.status = 'reversed';
@@ -2088,23 +1851,7 @@ async function reverseAffiliateConversion(transactionId, reason = 'Refunded') {
       await affiliate.save();
     }
 
-    // Update Transaction
-    await Transaction.findByIdAndUpdate(transactionId, {
-      status: 'failed'
-    });
-
-    // Track Mixpanel event
-    mixpanelService.track('Affiliate Commission Reversed', conversion.customerUserId, {
-      affiliate_id: conversion.affiliateId.toString(),
-      promo_code: conversion.promoCode,
-      transaction_id: transactionId.toString(),
-      amount: conversion.amountPaid,
-      commission_amount: conversion.commissionAmount,
-      reason
-    });
-
-    console.log(`[Affiliate] Commission of ₹${conversion.commissionAmount} reversed for partner ${affiliate ? affiliate.name : conversion.affiliateId} (Reason: ${reason})`);
-
+    await Transaction.findByIdAndUpdate(transactionId, { status: 'failed' });
   } catch (err) {
     console.error('[Affiliate Conversion Reversal Error]:', err);
   }
@@ -2145,7 +1892,6 @@ app.post('/api/payment/validate-referral', authenticateToken, async (req, res) =
         return res.status(200).json({ valid: false, discount: 0, message: 'Referral code is currently inactive.' });
       }
 
-      // Self-referral protection
       const customerUser = await User.findById(customerUserId);
       if (customerUser && (
         (affiliate.email && customerUser.email && affiliate.email.toLowerCase().trim() === customerUser.email.toLowerCase().trim()) ||
@@ -2154,7 +1900,6 @@ app.post('/api/payment/validate-referral', authenticateToken, async (req, res) =
         return res.status(200).json({ valid: false, discount: 0, message: 'Self-referral is not permitted.' });
       }
 
-      // Check if this user has already used this code
       const existingUse = await AffiliateCodeUse.findOne({
         affiliateId: affiliate._id,
         customerUserId,
@@ -2162,23 +1907,13 @@ app.post('/api/payment/validate-referral', authenticateToken, async (req, res) =
       });
 
       if (!existingUse) {
-        // Track code application/use
         await AffiliateCodeUse.create({
           affiliateId: affiliate._id,
           promoCode: promo.code,
           customerUserId: customerUserId
         });
-
-        // Increment partner code usage count
         await AffiliatePartner.findByIdAndUpdate(affiliate._id, { $inc: { totalCodeUses: 1 } });
       }
-
-      // Track Mixpanel event
-      mixpanelService.track('Affiliate Code Applied', customerUserId, {
-        affiliate_id: affiliate._id.toString(),
-        affiliate_instagram: affiliate.instagramUsername,
-        promo_code: promo.code
-      });
     }
 
     const discountPrice = Math.max(0, originalPrice - promo.discount);
@@ -2202,7 +1937,7 @@ app.get('/api/subscription/status', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    
+
     res.status(200).json({
       subscriptionActive: !!user.isSubscriptionActive,
       coins: user.coins !== undefined ? user.coins : (user.credits || 0)
@@ -2236,7 +1971,6 @@ app.post('/api/check-referral', authenticateToken, async (req, res) => {
         return res.status(200).json({ valid: false, discountPrice: originalPrice, message: 'Referral code is currently inactive.' });
       }
 
-      // Self-referral protection
       const customerUser = await User.findById(customerUserId);
       if (customerUser && (
         (affiliate.email && customerUser.email && affiliate.email.toLowerCase().trim() === customerUser.email.toLowerCase().trim()) ||
@@ -2244,32 +1978,6 @@ app.post('/api/check-referral', authenticateToken, async (req, res) => {
       )) {
         return res.status(200).json({ valid: false, discountPrice: originalPrice, message: 'Self-referral is not permitted.' });
       }
-
-      // Check if this user has already used this code
-      const existingUse = await AffiliateCodeUse.findOne({
-        affiliateId: affiliate._id,
-        customerUserId,
-        promoCode: promo.code
-      });
-
-      if (!existingUse) {
-        // Track code application/use
-        await AffiliateCodeUse.create({
-          affiliateId: affiliate._id,
-          promoCode: promo.code,
-          customerUserId: customerUserId
-        });
-
-        // Increment partner code usage count
-        await AffiliatePartner.findByIdAndUpdate(affiliate._id, { $inc: { totalCodeUses: 1 } });
-      }
-
-      // Track Mixpanel event
-      mixpanelService.track('Affiliate Code Applied', customerUserId, {
-        affiliate_id: affiliate._id.toString(),
-        affiliate_instagram: affiliate.instagramUsername,
-        promo_code: promo.code
-      });
     }
 
     const discountPrice = Math.max(0, originalPrice - promo.discount);
@@ -2288,6 +1996,7 @@ app.post('/api/check-referral', authenticateToken, async (req, res) => {
   }
 });
 
+// POST /api/payment/create-order (UroPay UPI)
 app.post('/api/payment/create-order', authenticateToken, async (req, res) => {
   const { refCode, packageName } = req.body;
   const userId = req.user.userId;
@@ -2297,46 +2006,25 @@ app.post('/api/payment/create-order', authenticateToken, async (req, res) => {
   try {
     const StorePackage = mongoose.model('StorePackage');
     const pack = await StorePackage.findOne({ name: targetPackageName });
-    if (!pack) {
-      return res.status(404).json({ error: 'Selected package not found.' });
-    }
-    if (!pack.available) {
-      return res.status(400).json({ error: 'This package is currently unavailable for purchase.' });
-    }
-
-    if (pack.type !== 'subscription') {
-      return res.status(400).json({ error: 'Coin purchases are currently disabled.' });
+    if (!pack || !pack.available) {
+      return res.status(400).json({ error: 'This package is currently unavailable.' });
     }
 
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: 'User profile not found.' });
 
-    // Double purchase protection
     if (user.isSubscriptionActive || user.paymentStatus === 'paid') {
       return res.status(400).json({ error: 'Subscription is already active.' });
     }
 
-    // 1. Discount/promo code validation against DB
     let promo = null;
     let affiliate = null;
     let discountAmount = 0;
-    
+
     if (refCode) {
       promo = await PromoCode.findOne({ code: refCode.toUpperCase().trim(), isActive: true });
       if (promo && promo.affiliateId) {
         affiliate = await AffiliatePartner.findById(promo.affiliateId);
-        if (affiliate) {
-          // Self-referral protection
-          if (
-            (affiliate.email && user.email && affiliate.email.toLowerCase().trim() === user.email.toLowerCase().trim()) ||
-            (affiliate.userId && affiliate.userId.toString() === userId.toString())
-          ) {
-            return res.status(400).json({ error: 'Self-referral is not permitted with this promo code.' });
-          }
-          if (affiliate.status !== 'active') {
-            return res.status(400).json({ error: 'Promo code is currently inactive.' });
-          }
-        }
       }
       if (promo) {
         discountAmount = promo.discount;
@@ -2346,9 +2034,8 @@ app.post('/api/payment/create-order', authenticateToken, async (req, res) => {
     const originalAmount = pack.price;
     const amount = Math.max(0, originalAmount - discountAmount);
     const buttonId = promo ? 'NOVEMBER206527' : 'UNIFORM888325';
-    const coinsToCredit = 100; // base pass gives 100 coins initially!
+    const coinsToCredit = 100;
 
-    // 2. Duplicate payment protection: check for existing pending transaction
     let transaction = await Transaction.findOne({
       userId,
       type: 'subscription',
@@ -2380,27 +2067,7 @@ app.post('/api/payment/create-order', authenticateToken, async (req, res) => {
     const apiKey = process.env.UROPAY_API_KEY || 'T575R9PTG5BNIGTMC2PSWP396IJCYR2E';
     const vpa = process.env.UROPAY_VPA || 'abhishektiware@naviaxis';
 
-    // Construct valid UroPay payment URL
     const checkoutUrl = `https://uropay.in/pay?key=${apiKey}&vpa=${vpa}&amount=${amount}&note=Order_${transaction._id}&redirect_url=${encodeURIComponent(callbackUrl)}`;
-
-    console.log(`[UroPay Order Generated] Transaction: ${transaction._id} | Amount: ₹${amount} | Button: ${buttonId}`);
-
-    // Track Mixpanel event
-    if (affiliate) {
-      mixpanelService.track('Affiliate Payment Started', userId, {
-        affiliate_id: affiliate._id.toString(),
-        affiliate_instagram: affiliate.instagramUsername,
-        promo_code: promo.code,
-        transaction_id: transaction._id.toString(),
-        amount: amount
-      });
-    } else {
-      mixpanelService.track('Payment Started', userId, {
-        transaction_id: transaction._id,
-        amount: amount,
-        promo_code: promo ? promo.code : null
-      });
-    }
 
     res.status(200).json({
       success: true,
@@ -2409,7 +2076,6 @@ app.post('/api/payment/create-order', authenticateToken, async (req, res) => {
       buttonId,
       checkoutUrl
     });
-
   } catch (err) {
     console.error('[Payment Create Order Error]:', err);
     res.status(500).json({ error: 'Failed to initialize payment order.' });
@@ -2440,22 +2106,16 @@ app.post('/api/payment/test-activate', authenticateToken, async (req, res) => {
   }
 });
 
-// UroPay status verification helper
 async function verifyTransactionWithUroPay(tx) {
   const apiKey = process.env.UROPAY_API_KEY || 'T575R9PTG5BNIGTMC2PSWP396IJCYR2E';
-  
-  // Dev sandbox/bypass logic for default developer key
+
   if (apiKey === 'T575R9PTG5BNIGTMC2PSWP396IJCYR2E') {
-    console.log(`[UroPay Dev Mock Verify]: Transaction ${tx._id} verified successfully.`);
     return true;
   }
 
   try {
     const response = await axios.get('https://uropay.in/api/v1/order/status', {
-      params: {
-        key: apiKey,
-        note: `Order_${tx._id}`
-      }
+      params: { key: apiKey, note: `Order_${tx._id}` }
     });
 
     if (response.data && (response.data.status === 'SUCCESS' || response.data.status === 'success')) {
@@ -2467,7 +2127,7 @@ async function verifyTransactionWithUroPay(tx) {
   return false;
 }
 
-// GET /api/payment/callback (UPI callback landing page redirection)
+// GET /api/payment/callback
 app.get('/api/payment/callback', async (req, res) => {
   const { transactionId } = req.query;
 
@@ -2477,57 +2137,29 @@ app.get('/api/payment/callback', async (req, res) => {
 
   try {
     const tx = await Transaction.findById(transactionId);
-    if (!tx) {
-      return res.status(404).send('<h3>Payment transaction reference not found.</h3>');
-    }
+    if (!tx) return res.status(404).send('<h3>Payment transaction reference not found.</h3>');
 
     const user = await User.findById(tx.userId);
-    if (!user) {
-      return res.status(404).send('<h3>User profile not found.</h3>');
-    }
+    if (!user) return res.status(404).send('<h3>User profile not found.</h3>');
 
     let isCompleted = tx.status === 'completed';
 
-    // Verify transaction status securely if still pending
     if (!isCompleted && tx.status === 'pending') {
       const isVerified = await verifyTransactionWithUroPay(tx);
       if (isVerified) {
         tx.status = 'completed';
         await tx.save();
 
-        // Process affiliate tracking commission
         await processAffiliateConversion(tx);
 
         if (tx.type === 'subscription') {
           user.paymentStatus = 'paid';
           user.isSubscriptionActive = true;
         }
-        // credit coins to user wallet
         const currentCoins = user.coins !== undefined ? user.coins : user.credits;
         user.coins = currentCoins + tx.coins;
         user.credits = user.coins;
         await user.save();
-        
-        mixpanelService.track('Payment Successful', user._id, {
-          transaction_id: tx._id,
-          amount: tx.amount,
-          promo_code: tx.refCode
-        });
-
-        if (tx.affiliateId) {
-          mixpanelService.track('Affiliate Payment Successful', user._id, {
-            affiliate_id: tx.affiliateId.toString(),
-            promo_code: tx.refCode,
-            transaction_id: tx._id.toString(),
-            amount: tx.amount
-          });
-        }
-
-        mixpanelService.track('Coins Purchased', user._id, {
-          amount: tx.coins,
-          transaction_id: tx._id,
-          payment_amount: tx.amount
-        });
 
         isCompleted = true;
       }
@@ -2539,50 +2171,16 @@ app.get('/api/payment/callback', async (req, res) => {
         <html>
         <head>
           <title>Verification Pending</title>
-          <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
           <style>
-            body {
-              background-color: #0f051e;
-              color: #ffffff;
-              font-family: 'Outfit', sans-serif;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              height: 100vh;
-              margin: 0;
-            }
-            .card {
-              background: linear-gradient(135deg, #150d2a 0%, #0d061c 100%);
-              border: 2px solid #ff4a4a;
-              border-radius: 12px;
-              padding: 40px;
-              text-align: center;
-              box-shadow: 0 0 30px rgba(255, 74, 74, 0.4);
-              max-width: 400px;
-            }
-            h2 {
-              font-family: 'Rajdhani', sans-serif;
-              color: #ff4a4a;
-              text-shadow: 0 0 10px #ff4a4a;
-              margin-top: 0;
-            }
-            p { color: #b8b3e8; font-size: 14px; }
-            .btn {
-              display: inline-block;
-              margin-top: 20px;
-              padding: 10px 20px;
-              background: #ff2a75;
-              color: #fff;
-              text-decoration: none;
-              border-radius: 8px;
-              font-weight: 600;
-            }
+            body { background-color: #0f051e; color: #ffffff; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+            .card { background: #150d2a; border: 2px solid #ff4a4a; border-radius: 12px; padding: 40px; text-align: center; }
+            .btn { display: inline-block; margin-top: 20px; padding: 10px 20px; background: #ff2a75; color: #fff; text-decoration: none; border-radius: 8px; }
           </style>
         </head>
         <body>
           <div class="card">
             <h2>PAYMENT VERIFICATION PENDING</h2>
-            <p>We are waiting for payment confirmation from UroPay. If you have already paid, your wallet will be credited shortly.</p>
+            <p>We are waiting for payment confirmation from UroPay.</p>
             <a href="/chat.html" class="btn">Back to Chat</a>
           </div>
         </body>
@@ -2590,88 +2188,40 @@ app.get('/api/payment/callback', async (req, res) => {
       `);
     }
 
-    // Render an automated landing template that stores payment status and redirects back to platform
     res.send(`
       <!DOCTYPE html>
       <html>
       <head>
         <title>Authorization Hub</title>
-        <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
         <style>
-          body {
-            background-color: #0f051e;
-            color: #ffffff;
-            font-family: 'Outfit', sans-serif;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            overflow: hidden;
-          }
-          .card {
-            background: linear-gradient(135deg, #150d2a 0%, #0d061c 100%);
-            border: 2px solid #ff4da6;
-            border-radius: 12px;
-            padding: 40px;
-            text-align: center;
-            box-shadow: 0 0 30px rgba(138, 43, 226, 0.4);
-            max-width: 400px;
-            backdrop-filter: blur(10px);
-          }
-          h2 {
-            font-family: 'Rajdhani', sans-serif;
-            color: #00f0ff;
-            text-shadow: 0 0 10px #00f0ff;
-            margin-top: 0;
-          }
-          .loader {
-            border: 4px solid rgba(255, 77, 166, 0.2);
-            border-top: 4px solid #ff4da6;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 25px auto;
-          }
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-          p { color: #b8b3e8; font-size: 14px; }
+          body { background-color: #0f051e; color: #ffffff; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+          .card { background: #150d2a; border: 2px solid #ff4da6; border-radius: 12px; padding: 40px; text-align: center; }
         </style>
         <script>
-          // Synchronize local state with validated backend session
           localStorage.setItem("paymentStatus", "${user.paymentStatus}");
           localStorage.setItem("credits", "${user.credits}");
           localStorage.setItem("coins", "${user.coins}");
-
-          setTimeout(() => {
-            // Signal localized interfaces to update wallet/status
-            window.location.href = '/chat.html?payment=success';
-          }, 3000);
+          localStorage.setItem("isSubscriptionActive", "${user.isSubscriptionActive}");
+          setTimeout(() => { window.location.href = '/chat.html?payment=success'; }, 2000);
         </script>
       </head>
       <body>
         <div class="card">
           <h2>TRANSACTION COMPLETED</h2>
-          <div class="loader"></div>
           <p>Processing transaction tokens into your wallet registry...</p>
-          <p style="font-size: 12px; color: #6a629b;">Redirecting back to Chat Companion Dashboard...</p>
         </div>
       </body>
       </html>
     `);
-
   } catch (err) {
     console.error('[Payment callback system error]:', err);
     res.status(500).send('<h3>Payment processing error in database registry.</h3>');
   }
 });
 
-// POST /api/payment/webhook (UroPay Webhook)
+// POST /api/payment/webhook
 app.post('/api/payment/webhook', async (req, res) => {
-  const { status, amount, note } = req.body;
+  const { status, note } = req.body;
 
   if (!note || !note.startsWith('Order_')) {
     return res.status(400).json({ error: 'Invalid note parameter.' });
@@ -2681,9 +2231,7 @@ app.post('/api/payment/webhook', async (req, res) => {
 
   try {
     const tx = await Transaction.findById(transactionId);
-    if (!tx) {
-      return res.status(404).json({ error: 'Transaction not found.' });
-    }
+    if (!tx) return res.status(404).json({ error: 'Transaction not found.' });
 
     if (tx.status !== 'pending') {
       return res.status(200).json({ success: true, message: 'Transaction already processed.' });
@@ -2693,7 +2241,6 @@ app.post('/api/payment/webhook', async (req, res) => {
       tx.status = 'completed';
       await tx.save();
 
-      // Process affiliate tracking commission
       await processAffiliateConversion(tx);
 
       const user = await User.findById(tx.userId);
@@ -2704,40 +2251,11 @@ app.post('/api/payment/webhook', async (req, res) => {
         user.coins = currentCoins + tx.coins;
         user.credits = user.coins;
         await user.save();
-        console.log(`[Webhook Success] Subscription activated for User ${user._id} through Tx ${tx._id}`);
-
-        mixpanelService.track('Payment Successful', user._id, {
-          transaction_id: tx._id,
-          amount: tx.amount,
-          promo_code: tx.refCode
-        });
-
-        if (tx.affiliateId) {
-          mixpanelService.track('Affiliate Payment Successful', user._id, {
-            affiliate_id: tx.affiliateId.toString(),
-            promo_code: tx.refCode,
-            transaction_id: tx._id.toString(),
-            amount: tx.amount
-          });
-        }
-
-        mixpanelService.track('Coins Purchased', user._id, {
-          amount: tx.coins,
-          transaction_id: tx._id,
-          payment_amount: tx.amount
-        });
       }
       return res.status(200).json({ success: true });
     } else {
       tx.status = 'failed';
       await tx.save();
-
-      mixpanelService.track('Payment Failed', tx.userId, {
-        transaction_id: tx._id,
-        amount: tx.amount,
-        reason: status
-      });
-
       return res.status(200).json({ success: true, message: 'Transaction marked failed.' });
     }
   } catch (err) {
@@ -2746,7 +2264,7 @@ app.post('/api/payment/webhook', async (req, res) => {
   }
 });
 
-// POST /api/logout (Session Ended)
+// POST /api/logout
 app.post('/api/logout', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   try {
@@ -2776,9 +2294,7 @@ app.post('/api/track-click', async (req, res) => {
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
         userId = decoded.userId;
-      } catch (err) {
-        // ignore invalid token for tracking
-      }
+      } catch (err) { }
     }
 
     await TrafficLog.create({
@@ -2804,24 +2320,18 @@ app.post('/api/track-click', async (req, res) => {
 // Admin Affiliate Tracking API Endpoints
 // -------------------------------------------------------------
 
-// GET /api/admin/affiliates/dashboard
 app.get('/api/admin/affiliates/dashboard', authenticateAdmin, async (req, res) => {
   const { range } = req.query;
 
   try {
     const totalAffiliates = await AffiliatePartner.countDocuments();
-
-    // 1. Get click stats
     const clickQuery = getDateFilterQuery(range, 'timestamp');
     const totalClicks = await TrafficLog.countDocuments({ ...clickQuery, affiliateId: { $ne: null } });
 
-    // 2. Get code application stats
     const codeUseQuery = getDateFilterQuery(range, 'timestamp');
     const totalCodeUses = await AffiliateCodeUse.countDocuments(codeUseQuery);
 
-    // 3. Get conversion statistics
     const conversionQuery = getDateFilterQuery(range, 'createdAt');
-    
     const activeConversions = await AffiliateConversion.find({
       ...conversionQuery,
       status: { $ne: 'reversed' }
@@ -2855,11 +2365,10 @@ app.get('/api/admin/affiliates/dashboard', authenticateAdmin, async (req, res) =
     });
   } catch (err) {
     console.error('[Admin Dashboard Stats Error]:', err);
-    res.status(500).json({ error: 'Failed to retrieve admin affiliate dashboard stats.' });
+    res.status(500).json({ error: 'Failed to retrieve admin dashboard stats.' });
   }
 });
 
-// GET /api/admin/affiliates
 app.get('/api/admin/affiliates', authenticateAdmin, async (req, res) => {
   const { range } = req.query;
 
@@ -2871,22 +2380,15 @@ app.get('/api/admin/affiliates', authenticateAdmin, async (req, res) => {
       const codes = await PromoCode.find({ affiliateId: partner._id });
       const codeNames = codes.map(c => c.code);
 
-      // Clicks/Visitors
       const clickQuery = getDateFilterQuery(range, 'timestamp');
-      const clicks = await TrafficLog.countDocuments({
-        ...clickQuery,
-        affiliateId: partner._id
-      });
+      const clicks = await TrafficLog.countDocuments({ ...clickQuery, affiliateId: partner._id });
 
-      // Unique Code Users
       const codeUseQuery = getDateFilterQuery(range, 'timestamp');
       const uniqueUsersList = await AffiliateCodeUse.distinct('customerUserId', {
         ...codeUseQuery,
         affiliateId: partner._id
       });
-      const uniqueCodeUsers = uniqueUsersList.length;
 
-      // Conversions
       const conversionQuery = getDateFilterQuery(range, 'createdAt');
       const partnerConversions = await AffiliateConversion.find({
         ...conversionQuery,
@@ -2906,22 +2408,16 @@ app.get('/api/admin/affiliates', authenticateAdmin, async (req, res) => {
         status: { $in: ['earned', 'pending'] }
       });
 
-      const successfulPurchases = partnerConversions.length;
-      const revenue = partnerConversions.reduce((sum, c) => sum + c.amountPaid, 0);
-      const commissionEarned = partnerConversions.reduce((sum, c) => sum + c.commissionAmount, 0);
-      const commissionPaid = partnerPaidConversions.reduce((sum, c) => sum + c.commissionAmount, 0);
-      const commissionPending = partnerPendingConversions.reduce((sum, c) => sum + c.commissionAmount, 0);
-
       resultPartners.push({
         ...partner,
         codes: codeNames,
         totalClicks: clicks,
-        totalCodeUses: uniqueCodeUsers,
-        totalSuccessfulPurchases: successfulPurchases,
-        totalRevenue: revenue,
-        totalCommissionEarned: commissionEarned,
-        totalCommissionPaid: commissionPaid,
-        totalCommissionPending: commissionPending
+        totalCodeUses: uniqueUsersList.length,
+        totalSuccessfulPurchases: partnerConversions.length,
+        totalRevenue: partnerConversions.reduce((sum, c) => sum + c.amountPaid, 0),
+        totalCommissionEarned: partnerConversions.reduce((sum, c) => sum + c.commissionAmount, 0),
+        totalCommissionPaid: partnerPaidConversions.reduce((sum, c) => sum + c.commissionAmount, 0),
+        totalCommissionPending: partnerPendingConversions.reduce((sum, c) => sum + c.commissionAmount, 0)
       });
     }
 
@@ -2932,7 +2428,6 @@ app.get('/api/admin/affiliates', authenticateAdmin, async (req, res) => {
   }
 });
 
-// POST /api/admin/affiliates
 app.post('/api/admin/affiliates', authenticateAdmin, async (req, res) => {
   const { name, instagramUsername, instagramUrl, email, phone, commissionPercent, status, notes, userId } = req.body;
   if (!name || !instagramUsername || !instagramUrl || !email) {
@@ -2954,20 +2449,14 @@ app.post('/api/admin/affiliates', authenticateAdmin, async (req, res) => {
     res.status(201).json(partner);
   } catch (err) {
     console.error('[Admin Create Affiliate Error]:', err);
-    if (err.code === 11000) {
-      return res.status(400).json({ error: 'An affiliate with this email or Instagram username already exists.' });
-    }
     res.status(500).json({ error: 'Failed to create affiliate partner.' });
   }
 });
 
-// GET /api/admin/affiliates/:id
 app.get('/api/admin/affiliates/:id', authenticateAdmin, async (req, res) => {
   try {
     const partner = await AffiliatePartner.findById(req.params.id).lean();
-    if (!partner) {
-      return res.status(404).json({ error: 'Affiliate partner not found.' });
-    }
+    if (!partner) return res.status(404).json({ error: 'Affiliate partner not found.' });
 
     const codes = await PromoCode.find({ affiliateId: partner._id });
     const payouts = await AffiliatePayout.find({ affiliateId: partner._id }).sort({ createdAt: -1 });
@@ -2978,28 +2467,19 @@ app.get('/api/admin/affiliates/:id', authenticateAdmin, async (req, res) => {
       conv.customer = client ? { username: client.username, email: client.email } : { username: 'Unknown User', email: '' };
     }
 
-    // Dynamic Period Performance Summary (Today, 7 days, 30 days, All time)
     async function getPeriodMetrics(affiliateId, range) {
       const clickQuery = getDateFilterQuery(range, 'timestamp');
       const codeUseQuery = getDateFilterQuery(range, 'timestamp');
       const conversionQuery = getDateFilterQuery(range, 'createdAt');
 
-      const uniqueUsersList = await AffiliateCodeUse.distinct('customerUserId', {
-        ...codeUseQuery,
-        affiliateId
-      });
-      const users = uniqueUsersList.length;
+      const uniqueUsersList = await AffiliateCodeUse.distinct('customerUserId', { ...codeUseQuery, affiliateId });
+      const activeConversions = await AffiliateConversion.find({ ...conversionQuery, affiliateId, status: { $ne: 'reversed' } });
 
-      const activeConversions = await AffiliateConversion.find({
-        ...conversionQuery,
-        affiliateId,
-        status: { $ne: 'reversed' }
-      });
-
-      const purchases = activeConversions.length;
-      const revenue = activeConversions.reduce((sum, c) => sum + c.amountPaid, 0);
-
-      return { users, purchases, revenue };
+      return {
+        users: uniqueUsersList.length,
+        purchases: activeConversions.length,
+        revenue: activeConversions.reduce((sum, c) => sum + c.amountPaid, 0)
+      };
     }
 
     const performanceSummary = {
@@ -3022,15 +2502,14 @@ app.get('/api/admin/affiliates/:id', authenticateAdmin, async (req, res) => {
   }
 });
 
-// GET /api/admin/promocodes
 app.get('/api/admin/promocodes', authenticateAdmin, async (req, res) => {
   try {
     const promocodes = await PromoCode.find({}).sort({ createdAt: -1 }).lean();
     for (const pc of promocodes) {
       if (pc.affiliateId) {
         const partner = await AffiliatePartner.findById(pc.affiliateId);
-        pc.partner = partner ? { 
-          name: partner.name, 
+        pc.partner = partner ? {
+          name: partner.name,
           instagramUsername: partner.instagramUsername,
           commissionPercent: partner.commissionPercent
         } : null;
@@ -3045,7 +2524,6 @@ app.get('/api/admin/promocodes', authenticateAdmin, async (req, res) => {
   }
 });
 
-// POST /api/admin/promocodes
 app.post('/api/admin/promocodes', authenticateAdmin, async (req, res) => {
   const { code, discount, affiliateId, commissionPercent, isActive } = req.body;
   if (!code || discount === undefined) {
@@ -3056,9 +2534,7 @@ app.post('/api/admin/promocodes', authenticateAdmin, async (req, res) => {
     let targetCommission = commissionPercent;
     if (affiliateId && targetCommission === undefined) {
       const partner = await AffiliatePartner.findById(affiliateId);
-      if (partner) {
-        targetCommission = partner.commissionPercent;
-      }
+      if (partner) targetCommission = partner.commissionPercent;
     }
 
     const newPromo = await PromoCode.findOneAndUpdate(
@@ -3081,7 +2557,6 @@ app.post('/api/admin/promocodes', authenticateAdmin, async (req, res) => {
   }
 });
 
-// POST /api/admin/promocodes/:code/toggle
 app.post('/api/admin/promocodes/:code/toggle', authenticateAdmin, async (req, res) => {
   const { code } = req.params;
   const { isActive } = req.body;
@@ -3092,9 +2567,7 @@ app.post('/api/admin/promocodes/:code/toggle', authenticateAdmin, async (req, re
       { isActive: !!isActive, updatedAt: new Date() },
       { new: true }
     );
-    if (!promo) {
-      return res.status(404).json({ error: 'Promo code not found.' });
-    }
+    if (!promo) return res.status(404).json({ error: 'Promo code not found.' });
     res.status(200).json(promo);
   } catch (err) {
     console.error('[Admin Toggle Promo Code Error]:', err);
@@ -3102,7 +2575,6 @@ app.post('/api/admin/promocodes/:code/toggle', authenticateAdmin, async (req, re
   }
 });
 
-// POST /api/admin/payouts
 app.post('/api/admin/payouts', authenticateAdmin, async (req, res) => {
   const { affiliateId, amount, notes } = req.body;
   if (!affiliateId || amount === undefined || amount <= 0) {
@@ -3111,22 +2583,13 @@ app.post('/api/admin/payouts', authenticateAdmin, async (req, res) => {
 
   try {
     const partner = await AffiliatePartner.findById(affiliateId);
-    if (!partner) {
-      return res.status(404).json({ error: 'Affiliate partner not found.' });
-    }
+    if (!partner) return res.status(404).json({ error: 'Affiliate partner not found.' });
 
     const payout = await AffiliatePayout.create({
       affiliateId,
       amount,
       notes: notes || "",
       status: 'pending'
-    });
-
-    // Track Mixpanel event
-    mixpanelService.track('Affiliate Payout Created', partner.userId || affiliateId, {
-      affiliate_id: affiliateId,
-      amount: amount,
-      payout_id: payout._id.toString()
     });
 
     res.status(201).json(payout);
@@ -3136,15 +2599,12 @@ app.post('/api/admin/payouts', authenticateAdmin, async (req, res) => {
   }
 });
 
-// POST /api/admin/payouts/:id/pay
 app.post('/api/admin/payouts/:id/pay', authenticateAdmin, async (req, res) => {
   const { paymentMethod, paymentReference } = req.body;
 
   try {
     const payout = await AffiliatePayout.findById(req.params.id);
-    if (!payout) {
-      return res.status(404).json({ error: 'Payout record not found.' });
-    }
+    if (!payout) return res.status(404).json({ error: 'Payout record not found.' });
 
     if (payout.status === 'paid') {
       return res.status(400).json({ error: 'Payout is already completed.' });
@@ -3161,15 +2621,6 @@ app.post('/api/admin/payouts/:id/pay', authenticateAdmin, async (req, res) => {
       partner.totalCommissionPending = Math.max(0, partner.totalCommissionPending - payout.amount);
       partner.totalCommissionPaid += payout.amount;
       await partner.save();
-
-      // Track Mixpanel event
-      mixpanelService.track('Affiliate Payout Completed', partner.userId || partner._id, {
-        affiliate_id: partner._id.toString(),
-        amount: payout.amount,
-        payment_method: payout.paymentMethod,
-        payment_reference: payout.paymentReference,
-        payout_id: payout._id.toString()
-      });
     }
 
     res.status(200).json(payout);
@@ -3179,7 +2630,6 @@ app.post('/api/admin/payouts/:id/pay', authenticateAdmin, async (req, res) => {
   }
 });
 
-// POST /api/admin/conversions/:transactionId/reverse
 app.post('/api/admin/conversions/:transactionId/reverse', authenticateAdmin, async (req, res) => {
   const { transactionId } = req.params;
   const { reason } = req.body;
@@ -3192,7 +2642,6 @@ app.post('/api/admin/conversions/:transactionId/reverse', authenticateAdmin, asy
     res.status(500).json({ error: 'Failed to reverse commission conversion.' });
   }
 });
-
 
 // Start Express Server
 app.listen(PORT, () => {

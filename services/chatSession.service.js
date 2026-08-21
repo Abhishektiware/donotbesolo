@@ -141,49 +141,12 @@ async function handleChatMessage(userId, messageData) {
   let systemInstructionOverride = "";
   let mediaToAttach = null;
 
-  if (chatCount < 3) {
-    if (asksForPhoto || asksForVoice) {
-      systemInstructionOverride = `[System Note: The user asked for a photo/voice message, but connection is too new. Tease them politely and say they need to get closer to you or make you feel comfortable first. Keep it lighthearted.]`;
-    }
-  } else {
-    if (user.teasingStatus === 'none' || !user.teasingStatus) {
-      if (asksForPhoto) {
-        await User.updateOne({ _id: userId }, { $set: { teasingStatus: 'teasing_photo', teaseLinesCount: 0 } });
-        systemInstructionOverride = `[System Note: The user explicitly asked for a photo. Do NOT send it yet. You must tease them, make them wait, or tell them you are getting ready. Keep it playful.]`;
-      } else if (asksForVoice) {
-        await User.updateOne({ _id: userId }, { $set: { teasingStatus: 'teasing_voice', teaseLinesCount: 0 } });
-        systemInstructionOverride = `[System Note: The user explicitly asked for a voice note. Do NOT send it yet. Tell them how sweet your voice is, and ask if they are ready to hear you. Tease them.]`;
-      } else if (chatCount % 8 === 0) {
-        // Spontaneous tease every 8 lines
-        const selectedTease = Math.random() < 0.5 ? 'teasing_photo' : 'teasing_voice';
-        await User.updateOne({ _id: userId }, { $set: { teasingStatus: selectedTease, teaseLinesCount: 0 } });
-        if (selectedTease === 'teasing_photo') {
-          systemInstructionOverride = `[System Note: Spontaneously tease them by saying you might send a private photo/selfie soon, and ask if they want to see. Do NOT send it yet.]`;
-        } else {
-          systemInstructionOverride = `[System Note: Spontaneously tease them by saying you want to whisper something in a voice note soon, and ask if they are ready to hear you. Do NOT send it yet.]`;
-        }
-      }
-    } else {
-      const teaseLinesCount = (user.teaseLinesCount || 0) + 1;
-      await User.updateOne({ _id: userId }, { $set: { teaseLinesCount } });
+  if (asksForPhoto || asksForVoice) {
+    systemInstructionOverride = `[System Note: The user asked for a photo or voice message. Politely let them know that you can only chat via text messages in this interface. Keep it warm and matching your vibe, but be clear that you cannot send photos or voice recordings.]`;
+  }
 
-      if (teaseLinesCount < 2) {
-        if (user.teasingStatus === 'teasing_photo') {
-          systemInstructionOverride = `[System Note: Continue to tease them about the photo. Tell them you are almost ready. Do NOT send the photo yet.]`;
-        } else {
-          systemInstructionOverride = `[System Note: Continue to tease them about the voice message. Tell them how excited you are. Do NOT send the voice note yet.]`;
-        }
-      } else {
-        mediaToAttach = user.teasingStatus === 'teasing_photo' ? 'image' : 'voice';
-        await User.updateOne({ _id: userId }, { $set: { teasingStatus: 'none', teaseLinesCount: 0 } });
-
-        if (mediaToAttach === 'image') {
-          systemInstructionOverride = `[System Note: Tell them you have just sent the private photo/selfie and they can unlock it to see you! Keep it flirty.]`;
-        } else {
-          systemInstructionOverride = `[System Note: Tell them you have just recorded the private voice note and they can unlock it to hear your voice! Keep it flirty.]`;
-        }
-      }
-    }
+  if (user.teasingStatus && user.teasingStatus !== 'none') {
+    await User.updateOne({ _id: userId }, { $set: { teasingStatus: 'none', teaseLinesCount: 0 } });
   }
 
   // Together AI prompt building
@@ -194,25 +157,25 @@ async function handleChatMessage(userId, messageData) {
   const togetherApiKey = process.env.TOGETHER_API_KEY;
   const isTogetherKeyValid = togetherApiKey && !togetherApiKey.includes('placeholder');
 
+  const bluemindsApiKey = (process.env.BLUEMINDS_API_KEY || '').trim();
+  const isBluemindsKeyValid = bluemindsApiKey && !bluemindsApiKey.includes('placeholder');
+
   console.log("==========================");
-  console.log("Together Debug");
+  console.log("Bluesminds Debug");
   console.log("==========================");
-  console.log("API key exists?", !!togetherApiKey);
-  console.log("API key length:", togetherApiKey ? togetherApiKey.length : 0);
-  console.log("First 10 characters:", togetherApiKey ? togetherApiKey.substring(0, 10) : 'N/A');
+  console.log("API key exists?", !!bluemindsApiKey);
+  console.log("API key length:", bluemindsApiKey ? bluemindsApiKey.length : 0);
+  console.log("First 10 characters:", bluemindsApiKey ? bluemindsApiKey.substring(0, 10) : 'N/A');
 
-  const togetherModel = (!process.env.TEXT_MODEL || process.env.TEXT_MODEL.startsWith('key_') || !process.env.TEXT_MODEL.includes('/'))
-    ? 'meta-llama/Llama-3.3-70B-Instruct-Turbo'
-    : process.env.TEXT_MODEL;
+  const selectedModel = 'meta/llama-3.1-8b-instruct';
+  console.log("Model:", selectedModel);
 
-  console.log("Model:", togetherModel);
-
-  if (!isTogetherKeyValid) {
-    console.log("Together AI API key is missing or invalid. Returning debug error.");
+  if (!isBluemindsKeyValid) {
+    console.log("Bluesminds AI API key is missing or invalid. Returning debug error.");
     return {
       success: false,
-      reason: "Together API failed",
-      error: "Together AI API key is missing or invalid in .env file."
+      reason: "Bluesminds API failed",
+      error: "Bluesminds AI API key is missing or invalid in .env file."
     };
   }
 
@@ -232,7 +195,8 @@ async function handleChatMessage(userId, messageData) {
       relationshipLevel: memory.relationshipLevel,
       nickname: memory.nickname,
       currentMood: memory.currentMood
-    }) + (systemInstructionOverride ? `\n${systemInstructionOverride}` : "");
+    }) + "\nStrict Formatting Rule: Never use asterisks or written stage actions (e.g., do NOT write *giggles*, *blushes*, *smiles*, *looks away*). Express all emotions and tone naturally through dialogue, light expressive text (like 'haha', 'hehe', 'omg'), and natural emojis."
+      + (systemInstructionOverride ? `\n${systemInstructionOverride}` : "");
 
     console.log("Prompt length:", sysPrompt.length);
     console.log("Exact Prompt:\n", sysPrompt);
@@ -254,8 +218,7 @@ async function handleChatMessage(userId, messageData) {
     }
 
     const togetherVisionModel = process.env.VISION_MODEL || 'meta-llama/Llama-3.2-11B-Vision-Instruct';
-    const modelToUse = base64Image ? togetherVisionModel : togetherModel;
-
+    const modelToUse = base64Image ? togetherVisionModel : selectedModel;
     const apiMessages = [
       { role: 'system', content: sysPrompt }
     ];
@@ -297,103 +260,31 @@ async function handleChatMessage(userId, messageData) {
 
     console.log("Conversation length:", apiMessages.length);
     console.log("Model to use:", modelToUse);
-    console.log("Starting Together request...");
+    console.log("Starting Bluesminds request...");
 
-    const togetherRes = await axios.post('https://api.together.xyz/v1/chat/completions', {
-      model: modelToUse,
-      messages: apiMessages,
-      max_tokens: 80,
-      temperature: 0.8
-    }, {
-      headers: { Authorization: `Bearer ${togetherApiKey}` },
-      timeout: 30000
-    });
+    try {
+      const togetherRes = await axios.post('https://api.bluesminds.com/v1/chat/completions', {
+        model: 'meta/llama-3.1-8b-instruct',
+        messages: apiMessages,
+        max_tokens: 100,
+        temperature: 0.8
+      }, {
+        headers: {
+          'Authorization': `Bearer ${bluemindsApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 30000
+      });
 
-    console.log("HTTP status:", togetherRes.status);
-    console.log("Returned JSON:", JSON.stringify(togetherRes.data, null, 2));
-
-    companionResponse = togetherRes.data.choices[0].message.content.trim();
-    console.log("Generated reply:", companionResponse);
-
-    // Split reaction prefixes (Haha, Ooh, etc.) from the text block
-    mainText = companionResponse;
-    if (companionResponse.includes('\n\n')) {
-      const parts = companionResponse.split('\n\n');
-      if (parts.length >= 2 && parts[0].trim().length < 30 && !parts[0].includes(':')) {
-        reaction = parts[0].trim();
-        mainText = parts.slice(1).join('\n\n').trim();
-      }
-    } else if (companionResponse.includes('\n')) {
-      const parts = companionResponse.split('\n');
-      if (parts.length >= 2 && parts[0].trim().length < 30 && !parts[0].includes(':')) {
-        reaction = parts[0].trim();
-        mainText = parts.slice(1).join('\n').trim();
-      }
+      companionResponse = togetherRes.data.choices[0].message.content.trim();
+    } catch (apiErr) {
+      console.error('[AI Provider Delayed - Falling back to local reply]:', apiErr.message);
+      const vibeList = MOCK_MESSAGES[activeVibe] || MOCK_MESSAGES.Flirty;
+      companionResponse = vibeList[Math.floor(Math.random() * vibeList.length)];
     }
-  } catch (apiErr) {
-    console.error("==========================");
-    console.error("Together Request Failed!");
-    console.error("==========================");
-    if (apiErr.response) {
-      console.error("status:", apiErr.response.status);
-      console.error("headers:", JSON.stringify(apiErr.response.headers, null, 2));
-      console.error("response.data:", JSON.stringify(apiErr.response.data, null, 2));
-    } else {
-      console.error("status: N/A");
-      console.error("headers: N/A");
-      console.error("response.data: N/A");
-    }
-    console.error("full axios error:", apiErr);
-    console.error("stack trace:", apiErr.stack);
 
-    // TASK 7: Do not silently fallback
-    return {
-      success: false,
-      reason: "Together API failed",
-      error: {
-        message: apiErr.message,
-        status: apiErr.response ? apiErr.response.status : null,
-        data: apiErr.response ? apiErr.response.data : null,
-        stack: apiErr.stack
-      }
-    };
-  }
-
-  // Fallback triggers if Together AI is down
-  if (!companionResponse) {
-    const vibeList = MOCK_MESSAGES[activeVibe] || MOCK_MESSAGES.Flirty;
-    const baseResponse = vibeList[Math.floor(Math.random() * vibeList.length)];
-    
-    const isFirstMessage = (chatCount <= 1);
-    
-    if (activeLanguage === 'Hinglish') {
-      companionResponse = isFirstMessage 
-        ? "Hey! " + baseResponse + " Aur batao, sab badhiya hai na? 😊"
-        : baseResponse + " Aur batao, sab badhiya hai na? 😊";
-    } else if (activeLanguage === 'Spanish') {
-      companionResponse = isFirstMessage
-        ? "¡Hola! He estado esperando tu mensaje. ¿Cómo estás? 😊"
-        : "¿Qué haces? Estaba pensando en ti. ¿Cómo va tu día? 😊";
-    } else if (activeLanguage === 'French') {
-      companionResponse = isFirstMessage
-        ? "Salut! J'attendais ton message. Comment ça va? 😊"
-        : "Tu fais quoi ? Je pensais à toi. Tout va bien ? 😊";
-    } else if (activeLanguage === 'Japanese') {
-      companionResponse = isFirstMessage
-        ? "ねぇ😊 メッセージ待ってたよ。元気？"
-        : "何してるの？ちょっと気になっちゃって。🥺";
-    } else if (activeLanguage === 'German') {
-      companionResponse = isFirstMessage
-        ? "Hallo! Ich habe auf deine Nachricht gewartet. Wie geht es dir? 😊"
-        : "Was machst du gerade? Habe an dich gedacht. Alles gut? 😊";
-    } else {
-      companionResponse = isFirstMessage
-        ? "Hii 😊 " + baseResponse
-        : baseResponse;
-    }
-    mainText = companionResponse;
-    reaction = null;
-  }
+    // Clean any leftover asterisk tags
+    mainText = companionResponse.replace(/\*[^*]+\*/g, '').replace(/\s{2,}/g, ' ').trim();
 
   // Generate Media attachments if teased completly
   let lockedMedia = null;
@@ -465,7 +356,7 @@ async function handleChatMessage(userId, messageData) {
       const filePath = path.join(UPLOADS_DIR, `media-${mediaId}.mp3`);
       let voiceWritten = false;
 
-      const speechText = mainText || (activeLanguage === 'English' 
+      const speechText = mainText || (activeLanguage === 'English'
         ? `Hey there. I just sent you a private voice note. It's just for you, unlock it to hear me.`
         : `Hey yaar, maine tumhare liye ek special voice message bheja hai. Sirf tumhare liye hai, jaldi unlock karo na.`);
 
@@ -480,7 +371,7 @@ async function handleChatMessage(userId, messageData) {
               similarity_boost: 0.75
             }
           }, {
-            headers: { 
+            headers: {
               'xi-api-key': process.env.ELEVENLABS_API_KEY,
               'Content-Type': 'application/json'
             },
@@ -531,6 +422,10 @@ async function handleChatMessage(userId, messageData) {
     timestamp: new Date()
   });
 
+  if (mainText) {
+    mainText = mainText.replace(/\*[^*]+\*/g, '').replace(/\s{2,}/g, ' ').trim();
+  }
+
   conversation.history.push({
     role: 'assistant',
     content: mainText,
@@ -565,8 +460,13 @@ async function handleChatMessage(userId, messageData) {
     text: mainText,
     reaction: reaction,
     credits,
+    isSubscriptionActive: !!updatedUser.isSubscriptionActive,
     lockedMedia
   };
+  } catch (err) {
+    console.error('[Chat Session Service Error]:', err.message);
+    throw err;
+  }
 }
 
 module.exports = {

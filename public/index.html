@@ -2,6 +2,12 @@
 <html lang="en" class="page-home">
 
 <head>
+  <!-- Google Fonts: Space Grotesk (Titles) + Plus Jakarta Sans (Chat & Body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap"
+    rel="stylesheet">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>donotbesolo - Someone who's always there. 💖</title>
@@ -777,7 +783,7 @@
     document.addEventListener("DOMContentLoaded", () => {
       const particleContainer = document.getElementById('heartParticles');
       const hearts = ['💖', '❤️', '💕', '✨', '🌸'];
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i !== 20; i++) {
         const span = document.createElement('span');
         span.className = 'heart-particle';
         span.textContent = hearts[Math.floor(Math.random() * hearts.length)];
@@ -991,8 +997,9 @@
     <!-- Privacy & Brand Trust Guarantee Section -->
     <div class="trust-section">
       <h2 class="section-title-glow">Privacy & Brand Trust Guarantee</h2>
-      <p class="section-subtitle">Your private life stays private. We built donotbesolo with zero compromises on security.</p>
-      
+      <p class="section-subtitle">Your private life stays private. We built donotbesolo with zero compromises on
+        security.</p>
+
       <div class="trust-grid">
         <div class="glass-panel trust-card">
           <div class="trust-icon">🔒</div>
@@ -1015,7 +1022,8 @@
         <div class="glass-panel trust-card">
           <div class="trust-icon">💳</div>
           <h3>UPI Secure Payments</h3>
-          <p>Processed directly through secure UPI links. We never store credit cards, bank accounts, or billing data.</p>
+          <p>Processed directly through secure UPI links. We never store credit cards, bank accounts, or billing data.
+          </p>
         </div>
 
         <div class="glass-panel trust-card">
