@@ -66,6 +66,110 @@ async function sendOtpEmail(toEmail, otp, expiryMinutes = 5) {
   });
 }
 
+async function sendVerificationEmail(toEmail, verificationLink) {
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Verify Your Email - DONOTBESOLO</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Outfit:wght@300;400;600&display=swap');
+      </style>
+    </head>
+    <body style="background-color: #0d0714; margin: 0; padding: 0; font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+      <div style="background-color: #0d0714; color: #ffffff; padding: 40px 20px; text-align: center;">
+        <div style="background-color: #0f051e; color: #ffffff; padding: 40px; border-radius: 16px; border: 2px solid #ff4da6; text-align: center; max-width: 500px; margin: 0 auto; box-shadow: 0 0 20px #8a2be2;">
+          <h1 style="color: #ff4da6; text-shadow: 0 0 10px #ff4da6; margin-bottom: 20px; font-family: 'Rajdhani', sans-serif; font-size: 28px; font-weight: 700; letter-spacing: 1px;">DONOTBESOLO</h1>
+          <p style="font-size: 16px; color: #b8b3e8; line-height: 1.6; font-weight: 300;">Please verify your email address to unlock your cybernetic companion connection:</p>
+          
+          <div style="margin: 30px auto; width: fit-content;">
+            <a href="${verificationLink}" style="background-color: #ff4da6; color: #ffffff; padding: 14px 28px; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 8px; border: 1px solid #ff00ff; box-shadow: 0 0 15px #ff4da6; display: inline-block; font-family: 'Rajdhani', sans-serif; letter-spacing: 1px; transition: 0.3s;">
+              VERIFY EMAIL NOW 💖
+            </a>
+          </div>
+          
+          <p style="font-size: 12px; color: #6a629b; margin-top: 40px; border-top: 1px solid rgba(255, 77, 166, 0.15); padding-top: 20px; line-height: 1.5;">
+            Or copy and paste this link into your browser:<br>
+            <a href="${verificationLink}" style="color: #00f0ff; text-decoration: none;">${verificationLink}</a>
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const mailOptions = {
+    from: `"DONOTBESOLO Verification" <${process.env.EMAIL_USER}>`,
+    to: toEmail,
+    subject: 'Verify Your Email - DONOTBESOLO',
+    html: emailHtml
+  };
+
+  return new Promise((resolve, reject) => {
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        return reject(error);
+      }
+      console.log(`[Verification Email Sent via SMTP] Target: ${toEmail} | Msg ID: ${info.messageId}`);
+      resolve(info);
+    });
+  });
+}
+
+async function sendResetPasswordEmail(toEmail, resetLink) {
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Reset Your Password - DONOTBESOLO</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Outfit:wght@300;400;600&display=swap');
+      </style>
+    </head>
+    <body style="background-color: #0d0714; margin: 0; padding: 0; font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+      <div style="background-color: #0d0714; color: #ffffff; padding: 40px 20px; text-align: center;">
+        <div style="background-color: #0f051e; color: #ffffff; padding: 40px; border-radius: 16px; border: 2px solid #ff4da6; text-align: center; max-width: 500px; margin: 0 auto; box-shadow: 0 0 20px #8a2be2;">
+          <h1 style="color: #ff4da6; text-shadow: 0 0 10px #ff4da6; margin-bottom: 20px; font-family: 'Rajdhani', sans-serif; font-size: 28px; font-weight: 700; letter-spacing: 1px;">DONOTBESOLO</h1>
+          <p style="font-size: 16px; color: #b8b3e8; line-height: 1.6; font-weight: 300;">You requested to reset your password. Click the button below to secure your credentials:</p>
+          
+          <div style="margin: 30px auto; width: fit-content;">
+            <a href="${resetLink}" style="background-color: #ff4da6; color: #ffffff; padding: 14px 28px; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 8px; border: 1px solid #ff00ff; box-shadow: 0 0 15px #ff4da6; display: inline-block; font-family: 'Rajdhani', sans-serif; letter-spacing: 1px; transition: 0.3s;">
+              RESET PASSWORD NOW ❤️
+            </a>
+          </div>
+          
+          <p style="font-size: 12px; color: #6a629b; margin-top: 40px; border-top: 1px solid rgba(255, 77, 166, 0.15); padding-top: 20px; line-height: 1.5;">
+            Or copy and paste this link into your browser:<br>
+            <a href="${resetLink}" style="color: #00f0ff; text-decoration: none;">${resetLink}</a>
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const mailOptions = {
+    from: `"DONOTBESOLO Security" <${process.env.EMAIL_USER}>`,
+    to: toEmail,
+    subject: 'Reset Your Password - DONOTBESOLO',
+    html: emailHtml
+  };
+
+  return new Promise((resolve, reject) => {
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        return reject(error);
+      }
+      console.log(`[Reset Email Sent via SMTP] Target: ${toEmail} | Msg ID: ${info.messageId}`);
+      resolve(info);
+    });
+  });
+}
+
 module.exports = {
-  sendOtpEmail
+  sendOtpEmail,
+  sendVerificationEmail,
+  sendResetPasswordEmail
 };

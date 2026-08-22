@@ -98,7 +98,9 @@ async function handleChatMessage(userId, messageData) {
   }
 
   // Coin Deduction Checks
-  if (!user.isSubscriptionActive) {
+  const { checkSubscription } = require('./subscription.service');
+  const hasSubscription = await checkSubscription(user);
+  if (!hasSubscription) {
     const currentCredits = user.coins !== undefined ? user.coins : user.credits;
     if (currentCredits < 2) {
       const err = new Error('Insufficient credits. Refuel at the top-up station.');
@@ -454,13 +456,15 @@ async function handleChatMessage(userId, messageData) {
   // Sync credits display values
   const updatedUser = await User.findById(userId);
   const credits = updatedUser.coins !== undefined ? updatedUser.coins : updatedUser.credits;
+  const { checkSubscription } = require('./subscription.service');
+  const subscriptionActive = await checkSubscription(updatedUser);
 
   return {
     success: true,
     text: mainText,
     reaction: reaction,
     credits,
-    isSubscriptionActive: !!updatedUser.isSubscriptionActive,
+    isSubscriptionActive: subscriptionActive,
     lockedMedia
   };
   } catch (err) {

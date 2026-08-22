@@ -37,29 +37,31 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Admin Affiliate Private Route (Owner access via secret key)
+// Admin Login Page Route (GET /admin)
 app.get('/admin', (req, res) => {
-  const secretKey = process.env.ADMIN_SECRET_KEY || 'super_secret_admin_key_2026';
-  const keyQuery = req.query.key;
-  if (keyQuery && keyQuery === secretKey) {
-    const rootPath = path.join(__dirname, 'admin-affiliate.html');
-    const publicPath = path.join(__dirname, 'public', 'admin-affiliate.html');
-
-    if (fs.existsSync(rootPath)) {
-      return res.sendFile(rootPath);
-    } else if (fs.existsSync(publicPath)) {
-      return res.sendFile(publicPath);
-    } else {
-      return res.sendFile(path.join(__dirname, 'admin-views', 'admin-affiliate.html'));
-    }
-  } else {
-    res.redirect('/');
-  }
+  res.sendFile(path.join(__dirname, 'admin-views', 'admin-login.html'));
 });
 
-// Admin Affiliate Private Page Route
+// Alias /admin/login to /admin
+app.get('/admin/login', (req, res) => {
+  res.redirect('/admin');
+});
+
+// Admin Dashboard Route (Protected)
+app.get('/admin/dashboard', authenticateAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin-views', 'admin-affiliate.html'));
+});
+
+// Admin Affiliate Private Page Route (Protected alias)
 app.get('/admin/affiliates', authenticateAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin-views', 'admin-affiliate.html'));
+});
+
+// Admin Logout Route
+app.get('/admin/logout', (req, res) => {
+  res.clearCookie('token');
+  res.setHeader('Set-Cookie', 'token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax');
+  res.redirect('/admin');
 });
 
 // STATIC ASSETS MIDDLEWARE (After dynamic HTML routes)
@@ -116,20 +118,22 @@ const localMongoUri = 'mongodb://127.0.0.1:27017/donotbesolo';
 
 console.log('Attempting connection to Cloud MongoDB...');
 mongoose.connect(cloudMongoUri)
-  .then(() => {
+  .then(async () => {
     console.log('Connected to MongoDB Cloud Database.');
     seedPromoCodes();
     seedStorePackages();
+    await migrateLegacyPasswords();
     seedAdminUser();
   })
   .catch(err => {
     console.error('MongoDB Cloud connection authentication/network failure. Trying local MongoDB...');
     mongoose.disconnect().then(() => {
       mongoose.connect(localMongoUri)
-        .then(() => {
+        .then(async () => {
           console.log('Connected successfully to local MongoDB instance (mongodb://127.0.0.1:27017/donotbesolo).');
           seedPromoCodes();
           seedStorePackages();
+          await migrateLegacyPasswords();
           seedAdminUser();
         })
         .catch(localErr => {
@@ -143,9 +147,11 @@ const userSchema = new mongoose.Schema({
   fullname: { type: String, required: true },
   username: { type: String, required: true, unique: true },
   email: { type: String, sparse: true, unique: true },
-  password: { type: String },
+  passwordHash: { type: String },
   phone: { type: String, sparse: true, unique: true },
   emailVerified: { type: Boolean, default: false },
+  emailVerificationToken: { type: String, default: null },
+  emailVerificationExpires: { type: Date, default: null },
   role: { type: String, default: 'user' },
   referredByPartnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'AffiliatePartner', default: null },
   credits: { type: Number, default: 20 },
@@ -153,6 +159,14 @@ const userSchema = new mongoose.Schema({
   referredBy: { type: String, default: null },
   paymentStatus: { type: String, enum: ['unpaid', 'paid'], default: 'unpaid' },
   isSubscriptionActive: { type: Boolean, default: false },
+  subscription: {
+    active: { type: Boolean, default: false },
+    plan: { type: String, default: null },
+    startedAt: { type: Date, default: null },
+    expiresAt: { type: Date, default: null }
+  },
+  passwordResetToken: { type: String, default: null },
+  passwordResetExpires: { type: Date, default: null },
   chatCount: { type: Number, default: 0 },
   teasingStatus: { type: String, default: 'none' },
   teaseLinesCount: { type: Number, default: 0 },
@@ -378,6 +392,45 @@ const storePackageSchema = new mongoose.Schema({
 });
 const StorePackage = mongoose.model('StorePackage', storePackageSchema);
 
+// PaymentSession Schema
+const paymentSessionSchema = new mongoose.Schema({
+  paymentSessionId: { type: String, required: true, unique: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  planId: { type: String, required: true },
+  amount: { type: Number, required: true },
+  currency: { type: String, default: 'INR' },
+  status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
+  createdAt: { type: Date, default: Date.now },
+  expiresAt: { type: Date, default: () => new Date(Date.now() + 15 * 60 * 1000) } // 15 mins
+});
+const PaymentSession = mongoose.model('PaymentSession', paymentSessionSchema);
+
+// Payment Schema
+const paymentSchema = new mongoose.Schema({
+  transactionId: { type: String, required: true, unique: true },
+  paymentId: { type: String },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  amount: { type: Number, required: true },
+  email: { type: String }, // payment email
+  status: { type: String, default: 'completed' },
+  createdAt: { type: Date, default: Date.now }
+});
+const Payment = mongoose.model('Payment', paymentSchema);
+
+// Subscription Schema
+const subscriptionSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  planId: { type: String, required: true },
+  paymentId: { type: String },
+  transactionId: { type: String, required: true, unique: true },
+  amount: { type: Number, required: true },
+  status: { type: String, enum: ['active', 'expired', 'pending_review'], default: 'active' },
+  startDate: { type: Date, default: Date.now },
+  endDate: { type: Date, required: true },
+  createdAt: { type: Date, default: Date.now }
+});
+const Subscription = mongoose.model('Subscription', subscriptionSchema);
+
 // Seeders
 async function seedPromoCodes() {
   const codes = [
@@ -422,6 +475,61 @@ async function seedStorePackages() {
   }
 }
 
+async function migrateLegacyPasswords() {
+  const User = mongoose.model('User');
+  try {
+    const rawUsers = await User.collection.find({
+      password: { $exists: true },
+      passwordHash: { $exists: false }
+    }).toArray();
+
+    if (rawUsers.length > 0) {
+      console.log(`[Database Migration]: Found ${rawUsers.length} legacy users to migrate password field.`);
+      for (const rUser of rawUsers) {
+        await User.updateOne(
+          { _id: rUser._id },
+          {
+            $set: { passwordHash: rUser.password },
+            $unset: { password: "" }
+          }
+        );
+      }
+      console.log('[Database Migration]: Password migration completed successfully.');
+    }
+  } catch (err) {
+    console.error('[Database Migration Error]:', err);
+  }
+
+  try {
+    // Auto-verify all existing users to prevent lockout
+    const res = await User.updateMany(
+      { emailVerified: { $ne: true } },
+      { $set: { emailVerified: true } }
+    );
+    if (res.modifiedCount > 0) {
+      console.log(`[Database Migration]: Verified email for ${res.modifiedCount} legacy users.`);
+    }
+  } catch (err) {
+    console.error('[Database Migration Email Verification Error]:', err);
+  }
+
+  try {
+    // Drop legacy non-sparse unique index on email if exists
+    await User.collection.dropIndex('email_1');
+    console.log('[Database Migration]: Dropped legacy non-sparse email index.');
+  } catch (e) {
+    // Already dropped or did not exist
+  }
+
+  try {
+    // Recreate unique index on email as sparse
+    await User.collection.createIndex({ email: 1 }, { unique: true, sparse: true });
+    console.log('[Database Migration]: Recreated email unique index as sparse.');
+  } catch (err) {
+    console.error('[Database Migration Sparse Index Error]:', err);
+  }
+}
+
 async function seedAdminUser() {
   const User = mongoose.model('User');
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@donotbesolo.com';
@@ -430,7 +538,7 @@ async function seedAdminUser() {
 
   try {
     const existingAdmin = await User.findOne({
-      $or: [{ email: adminEmail }, { username: adminUsername }]
+      $or: [{ username: adminUsername }, { role: 'admin' }]
     });
 
     const hashedPassword = await bcrypt.hash(adminPassword, 10);
@@ -440,20 +548,33 @@ async function seedAdminUser() {
         fullname: 'System Admin',
         username: adminUsername,
         email: adminEmail,
-        password: hashedPassword,
+        passwordHash: hashedPassword,
         emailVerified: true,
         credits: 9999,
         coins: 9999,
         isSubscriptionActive: true,
+        subscription: {
+          active: true,
+          plan: 'Premium Dating Pass',
+          startedAt: new Date(),
+          expiresAt: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000) // Lifetime
+        },
         role: 'admin'
       });
       console.log(`[Admin Seed]: Admin user auto-created (${adminUsername} / ${adminEmail}).`);
     } else {
       existingAdmin.username = adminUsername;
       existingAdmin.email = adminEmail;
-      existingAdmin.password = hashedPassword;
+      existingAdmin.passwordHash = hashedPassword;
       existingAdmin.emailVerified = true;
       existingAdmin.role = 'admin';
+      existingAdmin.isSubscriptionActive = true;
+      existingAdmin.subscription = {
+        active: true,
+        plan: 'Premium Dating Pass',
+        startedAt: existingAdmin.subscription?.startedAt || new Date(),
+        expiresAt: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000)
+      };
       await existingAdmin.save();
       console.log(`[Admin Seed]: Admin user credentials synchronized with env config.`);
     }
@@ -503,7 +624,7 @@ async function authenticateAdmin(req, res, next) {
       acc[k] = v;
       return acc;
     }, {});
-    token = cookies['token'];
+    token = cookies['token'] || cookies['admin_token'];
   }
   if (!token && req.query.token) {
     token = req.query.token;
@@ -511,36 +632,29 @@ async function authenticateAdmin(req, res, next) {
 
   if (!token) {
     if (req.path.startsWith('/api/')) {
-      return res.status(403).json({ error: 'Forbidden: Admin access token or key required.' });
+      return res.status(401).json({ error: 'Access token required. Please sign in.' });
     } else {
-      return res.redirect('/');
+      return res.redirect('/admin');
     }
   }
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    const User = mongoose.model('User');
-    const user = await User.findById(decoded.userId);
-    if (!user) {
-      if (req.path.startsWith('/api/')) {
-        return res.status(403).json({ error: 'User profile not found.' });
-      } else {
-        return res.redirect('/');
-      }
-    }
-
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@donotbesolo.com';
-    const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-
-    const isEmailAdmin = user.email && adminEmail && user.email.toLowerCase().trim() === adminEmail.toLowerCase().trim();
-    const isUsernameAdmin = user.username && adminUsername && user.username.toLowerCase().trim() === adminUsername.toLowerCase().trim();
-    const isRoleAdmin = user.role === 'admin';
-
-    if (!isEmailAdmin && !isUsernameAdmin && !isRoleAdmin) {
+    if (decoded.role !== 'admin') {
       if (req.path.startsWith('/api/')) {
         return res.status(403).json({ error: 'Admin privileges required.' });
       } else {
-        return res.redirect('/');
+        return res.redirect('/admin');
+      }
+    }
+
+    const User = mongoose.model('User');
+    const user = await User.findById(decoded.userId);
+    if (!user || user.role !== 'admin') {
+      if (req.path.startsWith('/api/')) {
+        return res.status(403).json({ error: 'Admin profile not found or role is not admin.' });
+      } else {
+        return res.redirect('/admin');
       }
     }
 
@@ -550,7 +664,7 @@ async function authenticateAdmin(req, res, next) {
     if (req.path.startsWith('/api/')) {
       return res.status(403).json({ error: 'Invalid or expired admin token.' });
     } else {
-      return res.redirect('/');
+      return res.redirect('/admin');
     }
   }
 }
@@ -630,142 +744,144 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// POST /api/send-otp (Email)
-app.post('/api/send-otp', async (req, res) => {
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: 'Email address is required.' });
-  }
+const { checkSubscription } = require('./services/subscription.service');
 
-  try {
-    const userExists = await User.findOne({ email });
-    if (userExists) {
-      return res.status(400).json({ error: 'Email address is already registered in the grid.' });
+// Simple In-Memory Rate Limiter Middleware
+const rateLimitStore = {};
+function rateLimiter(limit, windowMs, message) {
+  return (req, res, next) => {
+    const ip = req.ip;
+    const now = Date.now();
+
+    if (!rateLimitStore[ip]) {
+      rateLimitStore[ip] = [];
     }
 
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    await OTP.create({ email, otpCode });
+    rateLimitStore[ip] = rateLimitStore[ip].filter(time => now - time < windowMs);
 
-    const emailHtml = `
-      <div style="background-color: #0f051e; color: #ffffff; font-family: 'Rajdhani', 'Outfit', sans-serif; padding: 40px; border-radius: 8px; border: 2px solid #ff4da6; text-align: center; max-width: 500px; margin: 0 auto; box-shadow: 0 0 20px #8a2be2;">
-        <h1 style="color: #ff4da6; text-shadow: 0 0 10px #ff4da6; margin-bottom: 20px; font-size: 28px;">DONOTBESOLO</h1>
-        <p style="font-size: 16px; color: #b8b3e8; line-height: 1.5;">Welcome to the cyber grid. Use the security verification code below to authorize your session:</p>
-        <div style="background: rgba(21, 13, 42, 0.8); border: 1px solid #8a2be2; border-radius: 4px; padding: 15px; font-size: 36px; font-weight: bold; letter-spacing: 5px; color: #00f0ff; text-shadow: 0 0 10px #00f0ff; margin: 30px auto; width: fit-content;">
-          ${otpCode}
-        </div>
-        <p style="font-size: 12px; color: #6a629b; margin-top: 30px;">This OTP will expire in 10 minutes. If you did not request this, ignore this system log.</p>
-      </div>
-    `;
+    if (rateLimitStore[ip].length >= limit) {
+      return res.status(429).json({ error: message || 'Too many requests. Please try again later.' });
+    }
 
-    const mailOptions = {
-      from: `"DONOTBESOLO Security" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: '🔑 Session Access Authorization Code - DONOTBESOLO',
-      html: emailHtml
+    rateLimitStore[ip].push(now);
+    next();
+  };
+}
+
+// POST /api/signup (Direct Registration)
+app.post('/api/signup', rateLimiter(5, 60 * 1000, 'Too many accounts created from this IP. Please try again later.'), async (req, res) => {
+  const { fullname, username, email, password, confirmPassword, referredBy, referralCode } = req.body;
+
+  if (!fullname || !username || !password || !confirmPassword) {
+    return res.status(400).json({ error: 'Full name, username, password, and confirm password fields are required.' });
+  }
+
+  // Prevent NoSQL Injection
+  const safeFullname = String(fullname).trim();
+  const safeUsername = String(username).trim();
+  const safeEmail = email ? String(email).trim().toLowerCase() : null;
+  const safePassword = String(password);
+  const safeConfirmPassword = String(confirmPassword);
+  const rawRef = String(referralCode || referredBy || '').toUpperCase().trim();
+
+  try {
+    if (safeUsername.length < 3 || safePassword.length < 6) {
+      return res.status(400).json({ error: 'Username must be at least 3 characters and password must be at least 6 characters long.' });
+    }
+
+    if (safePassword !== safeConfirmPassword) {
+      return res.status(400).json({ error: 'Password and confirm password do not match.' });
+    }
+
+    // Email format validation (only if provided)
+    if (safeEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(safeEmail)) {
+        return res.status(400).json({ error: 'Invalid email address format.' });
+      }
+    }
+
+    // Check username uniqueness (case-insensitive)
+    const usernameExists = await User.findOne({ username: { $regex: new RegExp(`^${safeUsername}$`, 'i') } });
+    if (usernameExists) {
+      return res.status(400).json({ error: 'Username is already registered.' });
+    }
+
+    // Check email uniqueness (case-insensitive) (only if provided)
+    if (safeEmail) {
+      const emailExists = await User.findOne({ email: { $regex: new RegExp(`^${safeEmail}$`, 'i') } });
+      if (emailExists) {
+        return res.status(400).json({ error: 'Email is already registered.' });
+      }
+    }
+
+    const hashedPassword = await bcrypt.hash(safePassword, 10);
+    const initialCredits = 20;
+
+    let referredByPartnerId = null;
+    let promo = null;
+    if (rawRef) {
+      promo = await PromoCode.findOne({ code: rawRef, isActive: true });
+      if (promo) {
+        referredByPartnerId = promo.affiliateId;
+      }
+    }
+
+    // Generate random verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const hashedVerificationToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours validity
+
+    // Create User (emailVerified is true if no email is provided, false if email is provided)
+    const userPayload = {
+      fullname: safeFullname,
+      username: safeUsername,
+      passwordHash: hashedPassword,
+      emailVerified: safeEmail ? false : true,
+      emailVerificationToken: safeEmail ? hashedVerificationToken : null,
+      emailVerificationExpires: safeEmail ? verificationExpires : null,
+      referredByPartnerId,
+      credits: initialCredits,
+      coins: initialCredits,
+      referredBy: promo ? promo.code : (rawRef || null),
+      paymentStatus: 'unpaid',
+      isSubscriptionActive: false,
+      subscription: {
+        active: false,
+        plan: null,
+        startedAt: null,
+        expiresAt: null
+      }
     };
 
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.log(`[LOCAL DEV OTP LOG] Email: ${email} | OTP: ${otpCode}`);
-        return res.status(200).json({ success: true, devMode: true, message: 'OTP logged to server console for testing.' });
+    if (safeEmail) {
+      userPayload.email = safeEmail;
+    }
+
+    const newUser = await User.create(userPayload);
+
+    // Send Verification Email (only if email is provided)
+    if (safeEmail) {
+      const verificationLink = `${req.protocol}://${req.get('host')}/api/verify-email?token=${verificationToken}`;
+      try {
+        const { sendVerificationEmail } = require('./services/email.service');
+        await sendVerificationEmail(newUser.email, verificationLink);
+      } catch (mailErr) {
+        console.log(`[LOCAL DEV EMAIL VERIFICATION LINK LOG] Email: ${newUser.email} | Link: ${verificationLink}`);
       }
-      res.status(200).json({ success: true, message: 'OTP code sent to email.' });
-    });
-  } catch (err) {
-    console.error('[OTP Error]:', err);
-    res.status(500).json({ error: 'Failed to trigger verification code.' });
-  }
-});
-
-// POST /api/signup (Email)
-app.post('/api/signup', async (req, res) => {
-  const { fullname, username, email, password, referredBy } = req.body;
-
-  if (!fullname || !username || !email || !password) {
-    return res.status(400).json({ error: 'All registration parameters are required.' });
-  }
-
-  try {
-    const userExists = await User.findOne({ $or: [{ email }, { username }] });
-    if (userExists) {
-      return res.status(400).json({ error: 'Username or email is already registered in the grid.' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const otp = otpService.generateOtp();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
-    await PendingUser.deleteOne({ email });
-    await PendingUser.create({
-      fullname,
-      username,
-      email,
-      password: hashedPassword,
-      otp,
-      expiresAt,
-      referredBy: referredBy || null
-    });
-
-    try {
-      await emailService.sendOtpEmail(email, otp, 5);
-    } catch (err) {
-      console.log(`[DEV FALLBACK] Verification Code for ${email}: ${otp}`);
-      return res.status(200).json({
-        success: true,
-        message: 'OTP generated and logged to server console (SMTP skipped).',
-        devMode: true
-      });
-    }
-
-    res.status(200).json({ success: true, message: 'OTP verification code sent to your email.' });
-  } catch (err) {
-    console.error('[Signup Error]:', err);
-    res.status(500).json({ error: 'System error during signup initialization.' });
-  }
-});
-
-// POST /api/verify-otp (Email)
-app.post('/api/verify-otp', async (req, res) => {
-  const { email, otp } = req.body;
-  if (!email || !otp) {
-    return res.status(400).json({ error: 'Email and verification code (OTP) are required.' });
-  }
-
-  try {
-    const pending = await PendingUser.findOne({ email });
-    if (!pending) {
-      return res.status(404).json({ error: 'No pending registration found for this email.' });
-    }
-
-    if (pending.attempts >= 5) {
-      return res.status(400).json({ error: 'Too many failed verification attempts. Please sign up again.' });
-    }
-
-    if (new Date() > pending.expiresAt) {
-      return res.status(400).json({ error: 'Verification code has expired. Please request a new one.' });
-    }
-
-    if (pending.otp !== otp) {
-      pending.attempts += 1;
-      await pending.save();
-      return res.status(400).json({ error: 'Invalid verification code.' });
-    }
-
-    const userExists = await User.findOne({ $or: [{ email: pending.email }, { username: pending.username }] });
-    if (userExists) {
-      return res.status(400).json({ error: 'Username or email is already registered.' });
-    }
-
-    let initialCredits = 20;
-    if (pending.referredBy) {
-      const referrer = await User.findOne({ username: pending.referredBy });
+    // Process referrer credits if standard user referral
+    if (rawRef && !promo) {
+      const referrer = await User.findOne({ username: { $regex: new RegExp(`^${rawRef}$`, 'i') } });
       if (referrer) {
-        referrer.credits += 50;
+        referrer.credits = (referrer.credits || 0) + 50;
+        referrer.coins = (referrer.coins || 0) + 50;
         await referrer.save();
 
         await Transaction.create({
           userId: referrer._id,
-          refCode: pending.referredBy,
+          refCode: rawRef,
           amount: 0,
           type: 'coins',
           coins: 50,
@@ -774,20 +890,18 @@ app.post('/api/verify-otp', async (req, res) => {
       }
     }
 
-    const newUser = await User.create({
-      fullname: pending.fullname,
-      username: pending.username,
-      email: pending.email,
-      password: pending.password,
-      emailVerified: true,
-      credits: initialCredits,
-      coins: initialCredits,
-      referredBy: pending.referredBy || null,
-      paymentStatus: 'unpaid',
-      isSubscriptionActive: false
-    });
+    // Process affiliate partner code use
+    if (referredByPartnerId) {
+      await AffiliatePartner.findByIdAndUpdate(referredByPartnerId, {
+        $inc: { totalCodeUses: 1, uniqueUsers: 1 }
+      });
+    }
 
-    const token = jwt.sign({ userId: newUser._id, username: newUser.username }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign(
+      { userId: newUser._id, username: newUser.username, role: newUser.role || 'user' },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
     mixpanelService.track('User Signed Up', newUser._id, {
       fullname: newUser.fullname,
@@ -802,295 +916,145 @@ app.post('/api/verify-otp', async (req, res) => {
       $created: newUser.createdAt || new Date()
     });
 
-    await PendingUser.deleteOne({ _id: pending._id });
+    res.setHeader('Set-Cookie', `token=${token}; Path=/; Max-Age=${7 * 24 * 60 * 60}; SameSite=Lax`);
 
     res.status(201).json({
       success: true,
       token,
       userId: newUser._id,
-      credits: newUser.credits,
-      redirect: "/index.html"
+      username: newUser.username,
+      credits: newUser.coins !== undefined ? newUser.coins : newUser.credits,
+      paymentStatus: newUser.paymentStatus || 'unpaid',
+      isSubscriptionActive: false,
+      redirect: "/index.html",
+      message: safeEmail ? 'Account created successfully! A verification link has been sent to your email.' : 'Account created successfully!'
     });
   } catch (err) {
-    console.error('[Verify OTP Error]:', err);
-    res.status(500).json({ error: 'System error during OTP verification.' });
+    console.error('[Signup Error]:', err);
+    res.status(500).json({ error: 'System failure creating your account profile.' });
   }
 });
 
-// POST /api/resend-otp (Email)
-app.post('/api/resend-otp', async (req, res) => {
+// Disabled email/phone OTP routes
+app.post('/api/verify-otp', (req, res) => {
+  res.status(410).json({ error: 'OTP verification is deprecated and removed.' });
+});
+app.post('/api/resend-otp', (req, res) => {
+  res.status(410).json({ error: 'OTP verification is deprecated and removed.' });
+});
+app.post('/api/auth/send-phone-otp', (req, res) => {
+  res.status(410).json({ error: 'OTP verification is deprecated and removed.' });
+});
+// GET /api/verify-email
+app.get('/api/verify-email', async (req, res) => {
+  const { token } = req.query;
+  if (!token) {
+    return res.redirect('/login.html?message=email_verification_failed');
+  }
+
+  try {
+    const hashedToken = crypto.createHash('sha256').update(String(token)).digest('hex');
+    const user = await User.findOne({
+      emailVerificationToken: hashedToken,
+      emailVerificationExpires: { $gt: new Date() }
+    });
+
+    if (!user) {
+      return res.redirect('/login.html?message=email_verification_failed');
+    }
+
+    user.emailVerified = true;
+    user.emailVerificationToken = null;
+    user.emailVerificationExpires = null;
+    await user.save();
+
+    res.redirect('/login.html?message=email_verified');
+  } catch (err) {
+    console.error('[Verify Email Error]:', err);
+    res.redirect('/login.html?message=email_verification_failed');
+  }
+});
+
+// POST /api/resend-verification
+app.post('/api/resend-verification', async (req, res) => {
   const { email } = req.body;
   if (!email) {
     return res.status(400).json({ error: 'Email address is required.' });
   }
 
   try {
-    const pending = await PendingUser.findOne({ email });
-    if (!pending) {
-      return res.status(404).json({ error: 'No pending registration found for this email.' });
-    }
-
-    const now = new Date();
-    if (pending.lastResentAt && (now - pending.lastResentAt) < 60 * 1000) {
-      const waitSeconds = Math.ceil((60 * 1000 - (now - pending.lastResentAt)) / 1000);
-      return res.status(429).json({ error: `Please wait ${waitSeconds} seconds before requesting a new code.` });
-    }
-
-    const newOtp = otpService.generateOtp();
-    pending.otp = newOtp;
-    pending.expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-    pending.lastResentAt = now;
-    pending.attempts = 0;
-    await pending.save();
-
-    try {
-      await emailService.sendOtpEmail(email, newOtp, 5);
-    } catch (err) {
-      console.log(`[DEV FALLBACK] Resent Verification Code for ${email}: ${newOtp}`);
-      return res.status(200).json({
-        success: true,
-        message: 'New OTP generated and logged to server console (SMTP skipped).',
-        devMode: true
-      });
-    }
-
-    res.status(200).json({ success: true, message: 'New security verification code sent.' });
-  } catch (err) {
-    console.error('[Resend OTP Error]:', err);
-    res.status(500).json({ error: 'System failed to resend verification code.' });
-  }
-});
-
-// POST /api/auth/send-phone-otp (Fast2SMS Quick Dispatch)
-app.post('/api/auth/send-phone-otp', async (req, res) => {
-  const { phone } = req.body;
-  if (!phone) {
-    return res.status(400).json({ error: 'Phone number is required.' });
-  }
-
-  let rawPhone = phone.replace(/\D/g, '');
-  if (rawPhone.length > 10) {
-    rawPhone = rawPhone.slice(-10);
-  }
-
-  if (rawPhone.length !== 10) {
-    return res.status(400).json({ error: 'Please enter a valid 10-digit Indian phone number.' });
-  }
-
-  const normalizedPhone = '+91' + rawPhone;
-
-  try {
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
-    await PhoneOtp.deleteOne({ phone: normalizedPhone });
-    await PhoneOtp.create({
-      phone: normalizedPhone,
-      otp,
-      expiresAt
-    });
-
-    console.log(`\n======================================================`);
-    console.log(`🔑 AUTH OTP FOR [${normalizedPhone}]:  👉  ${otp}  👈`);
-    console.log(`======================================================\n`);
-
-    const apiKey = (process.env.FAST2SMS_API_KEY || '').trim();
-
-    if (apiKey) {
-      try {
-        const messageText = `Your donotbesolo verification OTP is ${otp}. Valid for 5 minutes.`;
-        const fast2smsUrl = `https://www.fast2sms.com/dev/bulkV2?authorization=${encodeURIComponent(apiKey)}&route=q&message=${encodeURIComponent(messageText)}&flash=0&numbers=${encodeURIComponent(rawPhone)}`;
-
-        const smsResponse = await axios.get(fast2smsUrl);
-        console.log(`[Fast2SMS Sent] Phone: ${rawPhone}, OTP: ${otp}`, smsResponse.data);
-      } catch (smsErr) {
-        console.log('[Fast2SMS Provider Notice]: Gateway offline/unfunded. Use terminal OTP above.');
-      }
-    }
-
-    return res.status(200).json({ success: true, message: 'Verification code sent successfully.' });
-  } catch (err) {
-    console.error('[Send Phone OTP Error]:', err);
-    return res.status(500).json({ error: 'System error during OTP dispatch.' });
-  }
-});
-
-// POST /api/auth/verify-phone-otp
-app.post('/api/auth/verify-phone-otp', async (req, res) => {
-  const { phone, otp, otpToken, fullName, username, referralCode } = req.body;
-  if (!phone || (!otp && !otpToken)) {
-    return res.status(400).json({ error: 'Phone number and verification code or token are required.' });
-  }
-
-  let cleanPhone = phone.replace(/\D/g, '');
-  if (cleanPhone.length === 10) {
-    cleanPhone = '91' + cleanPhone;
-  }
-  const normalizedPhone = '+' + cleanPhone;
-
-  try {
-    let verified = false;
-
-  if (otpToken) {
-    const authKey = process.env.MSG91_AUTH_KEY;
-    if (!authKey) {
-      return res.status(500).json({ error: 'MSG91 API key is not configured on the server.' });
-    }
-
-    try {
-      const msg91Response = await axios.post('https://api.msg91.com/api/v5/widget/verifyAccessToken', {
-        'access-token': otpToken
-      }, {
-        headers: {
-          'authkey': authKey,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      console.log('[MSG91 Token Verification]:', msg91Response.data);
-
-      const isSuccess = msg91Response.data && (msg91Response.data.type === 'success' || msg91Response.data.status === 'success');
-      const verifiedPhone = msg91Response.data && (msg91Response.data.mobile || (msg91Response.data.data && msg91Response.data.data.mobile));
-
-      if (!isSuccess || !verifiedPhone) {
-        return res.status(400).json({ error: 'Invalid or expired verification session.' });
-      }
-
-      const cleanedVerified = verifiedPhone.replace(/\D/g, '');
-      if (cleanedVerified.slice(-10) !== cleanPhone.slice(-10)) {
-        return res.status(400).json({ error: 'Phone number mismatch with verification session.' });
-      }
-
-      verified = true;
-    } catch (msg91Err) {
-      console.error('[MSG91 Token Verification Error]:', msg91Err.response ? msg91Err.response.data : msg91Err.message);
-      return res.status(400).json({ error: 'OTP verification token failed.' });
-    }
-  } else {
-    try {
-      const otpRecord = await PhoneOtp.findOne({ phone: normalizedPhone });
-      if (!otpRecord) {
-        return res.status(404).json({ error: 'No OTP record found for this phone number.' });
-      }
-
-      if (new Date() > otpRecord.expiresAt) {
-        return res.status(400).json({ error: 'Verification code has expired. Please request a new one.' });
-      }
-
-      if (otpRecord.otp !== otp) {
-        return res.status(400).json({ error: 'Invalid verification code.' });
-      }
-
-      await PhoneOtp.deleteOne({ _id: otpRecord._id });
-      verified = true;
-    } catch (err) {
-      console.error('[Local OTP Verification Error]:', err);
-      return res.status(500).json({ error: 'System error during local OTP verification.' });
-    }
-  }
-
-  if (!verified) {
-    return res.status(400).json({ error: 'OTP verification failed.' });
-  }
-
-    const adminPhone = process.env.ADMIN_PHONE || '+919026552034';
-    const isAdmin = normalizedPhone === adminPhone || cleanPhone === adminPhone.replace(/\D/g, '');
-
-    let promo = null;
-    let referredByPartnerId = null;
-    if (referralCode && !isAdmin) {
-      promo = await PromoCode.findOne({ code: referralCode.toUpperCase().trim(), isActive: true });
-      if (promo) {
-        referredByPartnerId = promo.affiliateId;
-      }
-    }
-
-    let user = await User.findOne({ phone: normalizedPhone });
-    let isNewUser = false;
-
+    const user = await User.findOne({ email: String(email).trim().toLowerCase() });
     if (!user) {
-      isNewUser = true;
-      const initialCredits = isAdmin ? 9999 : 20;
-
-      const finalUsername = username ? username.trim() : (isAdmin ? 'admin' : `user_${normalizedPhone.slice(-4)}${Math.floor(100 + Math.random() * 900)}`);
-      const finalFullname = fullName ? fullName.trim() : (isAdmin ? 'System Admin' : `User ${normalizedPhone.slice(-4)}`);
-
-      user = await User.create({
-        fullname: finalFullname,
-        username: finalUsername,
-        phone: normalizedPhone,
-        referredByPartnerId,
-        email: `phone_${normalizedPhone.slice(1)}@donotbesolo.com`,
-        password: await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10),
-        emailVerified: true,
-        credits: initialCredits,
-        coins: initialCredits,
-        referredBy: promo ? promo.code : null,
-        paymentStatus: isAdmin ? 'paid' : 'unpaid',
-        isSubscriptionActive: isAdmin,
-        role: isAdmin ? 'admin' : 'user'
-      });
-
-      if (referredByPartnerId) {
-        await AffiliatePartner.findByIdAndUpdate(referredByPartnerId, {
-          $inc: { totalCodeUses: 1, uniqueUsers: 1 }
-        });
-      }
-    } else if (isAdmin && user.role !== 'admin') {
-      user.role = 'admin';
-      user.isSubscriptionActive = true;
-      user.paymentStatus = 'paid';
-      await user.save();
+      return res.status(200).json({ success: true, message: 'If the account exists, a new verification link has been sent.' });
     }
 
-    const token = jwt.sign(
-      { userId: user._id, phone: user.phone, role: user.role || 'user' },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    if (user.emailVerified) {
+      return res.status(400).json({ error: 'Email is already verified.' });
+    }
 
-    res.setHeader('Set-Cookie', `token=${token}; Path=/; Max-Age=${7 * 24 * 60 * 60}; SameSite=Lax`);
-    const redirectUrl = (user.role === 'admin' || isAdmin) ? "/admin/affiliates" : "/";
+    const token = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
-    res.status(200).json({
-      success: true,
-      token,
-      userId: user._id,
-      username: user.username,
-      credits: user.coins !== undefined ? user.coins : user.credits,
-      paymentStatus: user.paymentStatus || 'unpaid',
-      isNewUser,
-      redirect: redirectUrl
-    });
+    user.emailVerificationToken = hashedToken;
+    user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await user.save();
+
+    const verificationLink = `${req.protocol}://${req.get('host')}/api/verify-email?token=${token}`;
+    
+    try {
+      const { sendVerificationEmail } = require('./services/email.service');
+      await sendVerificationEmail(user.email, verificationLink);
+    } catch (err) {
+      console.log(`[LOCAL DEV VERIFICATION LINK LOG] Email: ${user.email} | Link: ${verificationLink}`);
+    }
+
+    res.status(200).json({ success: true, message: 'If the account exists, a new verification link has been sent.' });
   } catch (err) {
-    console.error('[Verify Phone OTP Error]:', err);
-    res.status(500).json({ error: 'System error during verification.' });
+    console.error('[Resend verification error]:', err);
+    res.status(500).json({ error: 'Failed to process verification request.' });
   }
 });
 
 // POST /api/login
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', rateLimiter(10, 60 * 1000, 'Too many login attempts. Please try again in a minute.'), async (req, res) => {
   const { usernameOrEmail, password } = req.body;
 
   if (!usernameOrEmail || !password) {
     return res.status(400).json({ error: 'Identifier and password credentials required.' });
   }
 
+  // Prevent NoSQL Injection
+  const safeIdentifier = String(usernameOrEmail).trim();
+  const safePassword = String(password);
+
   try {
     const user = await User.findOne({
-      $or: [{ email: usernameOrEmail }, { username: usernameOrEmail }]
+      $or: [
+        { email: { $regex: new RegExp(`^${safeIdentifier}$`, 'i') } },
+        { username: { $regex: new RegExp(`^${safeIdentifier}$`, 'i') } }
+      ]
     });
 
     if (!user) {
       return res.status(400).json({ error: 'Credentials not found in the grid.' });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    // Verify Password Hash
+    const isMatch = await bcrypt.compare(safePassword, user.passwordHash || '');
     if (!isMatch) {
       return res.status(400).json({ error: 'Access denied. Incorrect security credentials.' });
     }
 
-    const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
+    // Verify Email Verification Status
+    // Verify Email Verification Status (only if email is registered)
+    if (user.email && !user.emailVerified) {
+      return res.status(400).json({ error: 'Please verify your email address. A verification link was sent to your email.' });
+    }
+
+    // Check & dynamic update subscription expiration
+    const subscriptionActive = await checkSubscription(user);
+
+    const token = jwt.sign({ userId: user._id, username: user.username, role: user.role || 'user' }, JWT_SECRET, { expiresIn: '7d' });
 
     mixpanelService.track('User Logged In', user._id, {
       username: user.username
@@ -1113,8 +1077,9 @@ app.post('/api/login', async (req, res) => {
       token,
       userId: user._id,
       username: user.username,
-      credits: user.credits,
-      paymentStatus: user.paymentStatus,
+      credits: user.coins !== undefined ? user.coins : user.credits,
+      paymentStatus: user.paymentStatus || 'unpaid',
+      isSubscriptionActive: subscriptionActive,
       redirect: redirectUrl
     });
   } catch (err) {
@@ -1123,49 +1088,44 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// POST /api/send-reset-otp
-app.post('/api/send-reset-otp', async (req, res) => {
-  const { usernameOrEmail } = req.body;
-  if (!usernameOrEmail) {
-    return res.status(400).json({ error: 'Username or email required to recover account.' });
+// POST /api/send-reset-otp (Forgot Password Request)
+app.post('/api/send-reset-otp', rateLimiter(5, 60 * 1000, 'Too many password reset requests. Please try again in a minute.'), async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'Email address is required to recover account.' });
   }
 
+  // Prevent NoSQL Injection
+  const safeEmail = String(email).trim().toLowerCase();
+
   try {
-    const user = await User.findOne({
-      $or: [{ email: usernameOrEmail }, { username: usernameOrEmail }]
-    });
-    if (!user) {
-      return res.status(404).json({ error: 'No account matching credentials found.' });
+    const user = await User.findOne({ email: safeEmail });
+
+    // Security practice: do not reveal user existence
+    const successMsg = 'If a matching account exists, a recovery link has been dispatched to your email address.';
+    if (!user || !user.email) {
+      return res.status(200).json({ success: true, message: successMsg });
     }
 
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    await OTP.create({ email: user.email, otpCode });
+    // Generate random token and hash it for DB storage
+    const token = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
-    const emailHtml = `
-      <div style="background-color: #0f051e; color: #ffffff; font-family: 'Rajdhani', 'Outfit', sans-serif; padding: 40px; border-radius: 8px; border: 2px solid #8a2be2; text-align: center; max-width: 500px; margin: 0 auto; box-shadow: 0 0 20px #ff4da6;">
-        <h1 style="color: #00f0ff; text-shadow: 0 0 10px #00f0ff; margin-bottom: 20px; font-size: 28px;">PASSWORD RECOVERY</h1>
-        <p style="font-size: 16px; color: #b8b3e8;">Use this code to verify your identity and restore access to your account:</p>
-        <div style="background: rgba(21, 13, 42, 0.8); border: 1px solid #ff4da6; border-radius: 4px; padding: 15px; font-size: 36px; font-weight: bold; letter-spacing: 5px; color: #ff4da6; text-shadow: 0 0 10px #ff4da6; margin: 30px auto; width: fit-content;">
-          ${otpCode}
-        </div>
-        <p style="font-size: 12px; color: #6a629b;">Valid for 10 minutes only. If you didn't initiate this, reset your login passwords immediately.</p>
-      </div>
-    `;
+    user.passwordResetToken = hashedToken;
+    user.passwordResetExpires = new Date(Date.now() + 20 * 60 * 1000); // 20 minutes validity
+    await user.save();
 
-    const mailOptions = {
-      from: `"DONOTBESOLO Security" <${process.env.EMAIL_USER}>`,
-      to: user.email,
-      subject: '🔑 Recovery Authorization Code - DONOTBESOLO',
-      html: emailHtml
-    };
+    // Construct reset link
+    const resetUrl = `${req.protocol}://${req.get('host')}/forgot-password.html?token=${token}`;
 
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.log(`[LOCAL DEV RESET OTP LOG] Email: ${user.email} | OTP: ${otpCode}`);
-        return res.status(200).json({ success: true, devMode: true, message: 'Recovery code logged to console.' });
-      }
-      res.status(200).json({ success: true, message: 'Recovery code dispatched to registered mail.' });
-    });
+    try {
+      const { sendResetPasswordEmail } = require('./services/email.service');
+      await sendResetPasswordEmail(user.email, resetUrl);
+      res.status(200).json({ success: true, message: successMsg });
+    } catch (mailErr) {
+      console.log(`[LOCAL DEV RESET LINK LOG] Email: ${user.email} | Link: ${resetUrl}`);
+      return res.status(200).json({ success: true, devMode: true, message: 'Recovery link logged to server console (SMTP skipped).' });
+    }
   } catch (err) {
     console.error('[Reset OTP Error]:', err);
     res.status(500).json({ error: 'System failed to register reset parameters.' });
@@ -1174,29 +1134,30 @@ app.post('/api/send-reset-otp', async (req, res) => {
 
 // POST /api/reset-password
 app.post('/api/reset-password', async (req, res) => {
-  const { usernameOrEmail, otpCode, newPassword } = req.body;
+  const { token, newPassword } = req.body;
 
-  if (!usernameOrEmail || !otpCode || !newPassword) {
-    return res.status(400).json({ error: 'All fields are required to update credentials.' });
+  if (!token || !newPassword) {
+    return res.status(400).json({ error: 'Token and new password are required to update credentials.' });
   }
 
   try {
+    // Hash incoming token to match DB
+    const hashedToken = crypto.createHash('sha256').update(String(token)).digest('hex');
+
     const user = await User.findOne({
-      $or: [{ email: usernameOrEmail }, { username: usernameOrEmail }]
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: new Date() }
     });
 
     if (!user) {
-      return res.status(404).json({ error: 'Account registry not found.' });
+      return res.status(400).json({ error: 'Invalid or expired password reset token.' });
     }
 
-    const latestOtp = await OTP.findOne({ email: user.email }).sort({ createdAt: -1 });
-    if (!latestOtp || latestOtp.otpCode !== otpCode) {
-      return res.status(400).json({ error: 'Invalid or expired security validation code.' });
-    }
-
-    user.password = await bcrypt.hash(newPassword, 10);
+    // Set new password
+    user.passwordHash = await bcrypt.hash(String(newPassword), 10);
+    user.passwordResetToken = null;
+    user.passwordResetExpires = null;
     await user.save();
-    await OTP.deleteOne({ _id: latestOtp._id });
 
     res.status(200).json({ success: true, message: 'Cybernetic credentials updated successfully.' });
   } catch (err) {
@@ -1355,7 +1316,7 @@ Never write warnings, meta-text, or break character. Keep it flirty/playful/supp
     res.status(200).json({
       success: true,
       credits: user.coins !== undefined ? user.coins : user.credits,
-      isSubscriptionActive: !!user.isSubscriptionActive,
+      isSubscriptionActive: await checkSubscription(user),
       activeCompanion: {
         name: companionName,
         gender,
@@ -1520,7 +1481,7 @@ app.post('/api/generate-image', authenticateToken, async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: 'User registry error.' });
 
-    if (!user.isSubscriptionActive) {
+    if (!(await checkSubscription(user))) {
       return res.status(403).json({ error: 'Active Dating Pass Required' });
     }
 
@@ -1584,7 +1545,7 @@ app.post('/api/request-voice-note', authenticateToken, async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: 'User profile mapping error.' });
 
-    if (!user.isSubscriptionActive) {
+    if (!(await checkSubscription(user))) {
       return res.status(403).json({ error: 'Active Dating Pass Required' });
     }
 
@@ -1939,7 +1900,7 @@ app.get('/api/subscription/status', authenticateToken, async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     res.status(200).json({
-      subscriptionActive: !!user.isSubscriptionActive,
+      subscriptionActive: await checkSubscription(user),
       coins: user.coins !== undefined ? user.coins : (user.credits || 0)
     });
   } catch (err) {
@@ -2013,27 +1974,75 @@ app.post('/api/payment/create-order', authenticateToken, async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: 'User profile not found.' });
 
-    if (user.isSubscriptionActive || user.paymentStatus === 'paid') {
+    if (await checkSubscription(user) || user.paymentStatus === 'paid') {
       return res.status(400).json({ error: 'Subscription is already active.' });
+    }
+
+    // Safely load and trim UroPay links from environment variables
+    const rawLink110 = process.env.UROPAY_LINK_110;
+    const rawLink99 = process.env.UROPAY_LINK_99;
+
+    const uropayLink110 = rawLink110 ? String(rawLink110).trim().replace(/^["']|["']$/g, '') : null;
+    const uropayLink99 = rawLink99 ? String(rawLink99).trim().replace(/^["']|["']$/g, '') : null;
+
+    if (!uropayLink110 || !uropayLink99) {
+      console.error('[UroPay Config Error]: Missing UROPAY_LINK_110 or UROPAY_LINK_99 in environment configuration.');
+      return res.status(500).json({ error: 'Payment gateway configuration error. Please contact system administrator.' });
     }
 
     let promo = null;
     let affiliate = null;
     let discountAmount = 0;
+    let isCouponValid = false;
+    const hasCouponSupplied = Boolean(refCode && typeof refCode === 'string' && refCode.trim().length > 0);
 
-    if (refCode) {
-      promo = await PromoCode.findOne({ code: refCode.toUpperCase().trim(), isActive: true });
-      if (promo && promo.affiliateId) {
-        affiliate = await AffiliatePartner.findById(promo.affiliateId);
-      }
+    if (hasCouponSupplied) {
+      const cleanRefCode = refCode.toUpperCase().trim();
+      promo = await PromoCode.findOne({ code: cleanRefCode, isActive: true });
       if (promo) {
-        discountAmount = promo.discount;
+        if (promo.affiliateId) {
+          affiliate = await AffiliatePartner.findById(promo.affiliateId);
+          if (affiliate && affiliate.status === 'active') {
+            const isSelfReferral = (
+              (affiliate.email && user.email && affiliate.email.toLowerCase().trim() === user.email.toLowerCase().trim()) ||
+              (affiliate.userId && affiliate.userId.toString() === userId.toString())
+            );
+            if (!isSelfReferral) {
+              isCouponValid = true;
+              discountAmount = promo.discount || 0;
+            }
+          }
+        } else {
+          isCouponValid = true;
+          discountAmount = promo.discount || 0;
+        }
       }
     }
 
-    const originalAmount = pack.price;
-    const amount = Math.max(0, originalAmount - discountAmount);
-    const buttonId = promo ? 'NOVEMBER206527' : 'UNIFORM888325';
+    const originalAmount = pack.price || 110;
+    let amount = originalAmount;
+    let checkoutUrl = '';
+    let selectedUrlVar = '';
+
+    if (isCouponValid && discountAmount > 0) {
+      amount = Math.max(0, originalAmount - discountAmount);
+    } else {
+      amount = originalAmount;
+      discountAmount = 0;
+    }
+
+    if (amount === 99) {
+      checkoutUrl = uropayLink99;
+      selectedUrlVar = 'UROPAY_LINK_99';
+    } else {
+      checkoutUrl = uropayLink110;
+      selectedUrlVar = 'UROPAY_LINK_110';
+    }
+
+    // Server-side logging
+    console.log(`[Payment Order Created] Coupon supplied: ${hasCouponSupplied} | Coupon valid: ${isCouponValid} | Selected price: ₹${amount} | Selected URL Var: ${selectedUrlVar}`);
+
+    const buttonId = isCouponValid ? 'NOVEMBER206527' : 'UNIFORM888325';
     const coinsToCredit = 100;
 
     let transaction = await Transaction.findOne({
@@ -2046,35 +2055,47 @@ app.post('/api/payment/create-order', authenticateToken, async (req, res) => {
     if (!transaction) {
       transaction = await Transaction.create({
         userId,
-        refCode: promo ? promo.code : null,
+        refCode: isCouponValid && promo ? promo.code : null,
         amount,
         type: 'subscription',
         coins: coinsToCredit,
         status: 'pending',
-        affiliateId: affiliate ? affiliate._id : null,
+        affiliateId: isCouponValid && affiliate ? affiliate._id : null,
         originalAmount,
-        discountAmount
+        discountAmount: isCouponValid ? discountAmount : 0
       });
     } else {
-      transaction.refCode = promo ? promo.code : null;
-      transaction.affiliateId = affiliate ? affiliate._id : null;
+      transaction.refCode = isCouponValid && promo ? promo.code : null;
+      transaction.affiliateId = isCouponValid && affiliate ? affiliate._id : null;
       transaction.originalAmount = originalAmount;
-      transaction.discountAmount = discountAmount;
+      transaction.discountAmount = isCouponValid ? discountAmount : 0;
       await transaction.save();
     }
 
-    const callbackUrl = `http://localhost:${PORT}/api/payment/callback?transactionId=${transaction._id}`;
-    const apiKey = process.env.UROPAY_API_KEY || 'T575R9PTG5BNIGTMC2PSWP396IJCYR2E';
-    const vpa = process.env.UROPAY_VPA || 'abhishektiware@naviaxis';
-
-    const checkoutUrl = `https://uropay.in/pay?key=${apiKey}&vpa=${vpa}&amount=${amount}&note=Order_${transaction._id}&redirect_url=${encodeURIComponent(callbackUrl)}`;
+    // Create a secure PaymentSession mapped to the transaction._id
+    const PaymentSession = mongoose.model('PaymentSession');
+    await PaymentSession.findOneAndUpdate(
+      { paymentSessionId: transaction._id.toString() },
+      {
+        paymentSessionId: transaction._id.toString(),
+        userId: user._id,
+        planId: targetPackageName,
+        amount,
+        currency: 'INR',
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 mins
+      },
+      { upsert: true }
+    );
 
     res.status(200).json({
       success: true,
       transactionId: transaction._id,
       amount,
       buttonId,
-      checkoutUrl
+      checkoutUrl,
+      couponApplied: isCouponValid,
+      couponMessage: hasCouponSupplied && !isCouponValid ? 'Invalid referral code. Standard ₹110 plan applied.' : undefined
     });
   } catch (err) {
     console.error('[Payment Create Order Error]:', err);
@@ -2092,6 +2113,12 @@ app.post('/api/payment/test-activate', authenticateToken, async (req, res) => {
 
     user.isSubscriptionActive = true;
     user.paymentStatus = 'paid';
+    user.subscription = {
+      active: true,
+      plan: 'Premium Dating Pass',
+      startedAt: new Date(),
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+    };
 
     const coinsToAdd = 100;
     const currentCoins = user.coins !== undefined ? user.coins : (user.credits || 0);
@@ -2110,7 +2137,7 @@ async function verifyTransactionWithUroPay(tx) {
   const apiKey = process.env.UROPAY_API_KEY || 'T575R9PTG5BNIGTMC2PSWP396IJCYR2E';
 
   if (apiKey === 'T575R9PTG5BNIGTMC2PSWP396IJCYR2E') {
-    return true;
+    return { status: 'SUCCESS', email: 'dummy_pay@example.com' };
   }
 
   try {
@@ -2119,7 +2146,7 @@ async function verifyTransactionWithUroPay(tx) {
     });
 
     if (response.data && (response.data.status === 'SUCCESS' || response.data.status === 'success')) {
-      return true;
+      return response.data;
     }
   } catch (err) {
     console.error('[UroPay API Status Check Error]:', err.message);
@@ -2127,11 +2154,102 @@ async function verifyTransactionWithUroPay(tx) {
   return false;
 }
 
+async function activateSubscription(transactionId, paymentEmail, paymentId) {
+  if (!mongoose.Types.ObjectId.isValid(transactionId)) {
+    console.error(`[Subscription Activation] Invalid transactionId format: ${transactionId}`);
+    return false;
+  }
+
+  const User = mongoose.model('User');
+  const Transaction = mongoose.model('Transaction');
+  const Subscription = mongoose.model('Subscription');
+  const Payment = mongoose.model('Payment');
+  const PaymentSession = mongoose.model('PaymentSession');
+
+  const tx = await Transaction.findById(transactionId);
+  if (!tx) {
+    console.error(`[Subscription Activation] Transaction ${transactionId} not found.`);
+    return false;
+  }
+
+  // Idempotency check: unique constraint on transactionId
+  const existingSub = await Subscription.findOne({ transactionId: tx._id.toString() });
+  if (existingSub) {
+    console.log(`[Subscription Activation] Transaction ${transactionId} already processed.`);
+    return true;
+  }
+
+  // Find payment session using paymentSessionId (transactionId)
+  const session = await PaymentSession.findOne({ paymentSessionId: tx._id.toString() });
+  const userId = session ? session.userId : tx.userId; // fallback to transaction.userId
+
+  tx.status = 'completed';
+  await tx.save();
+
+  // Create Payment record, saving the payment email separately
+  await Payment.create({
+    transactionId: tx._id.toString(),
+    paymentId: paymentId || 'uropay_pay_' + Date.now(),
+    userId,
+    amount: tx.amount,
+    email: paymentEmail || null,
+    status: 'completed'
+  });
+
+  // Create Subscription record
+  const planId = session ? session.planId : 'Premium Dating Pass';
+  const durationDays = 30; // 30 days
+  const startDate = new Date();
+  const endDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+
+  const sub = await Subscription.create({
+    userId,
+    planId,
+    paymentId: paymentId || 'uropay_pay_' + Date.now(),
+    transactionId: tx._id.toString(),
+    amount: tx.amount,
+    status: 'active',
+    startDate,
+    endDate
+  });
+
+  // Sync Mongoose User record status
+  const user = await User.findById(userId);
+  if (user) {
+    user.paymentStatus = 'paid';
+    user.isSubscriptionActive = true;
+    user.subscription = {
+      active: true,
+      plan: planId,
+      startedAt: startDate,
+      expiresAt: endDate
+    };
+
+    // Sync payment email to user info
+    if (paymentEmail) {
+      user.email = paymentEmail.toLowerCase().trim();
+      user.emailVerified = true;
+    }
+
+    // Credit coins
+    const currentCoins = user.coins !== undefined ? user.coins : user.credits;
+    user.coins = currentCoins + tx.coins;
+    user.credits = user.coins;
+    await user.save();
+  }
+
+  // Track affiliate commission
+  await processAffiliateConversion(tx);
+
+  console.log(`[Subscription Activation] Success for user ${userId}, plan ${planId}`);
+  return true;
+}
+
 // GET /api/payment/callback
 app.get('/api/payment/callback', async (req, res) => {
   const { transactionId } = req.query;
 
-  if (!transactionId) {
+  if (!transactionId || !mongoose.Types.ObjectId.isValid(transactionId)) {
     return res.status(400).send('<h3>Invalid checkout callback query configuration.</h3>');
   }
 
@@ -2145,22 +2263,10 @@ app.get('/api/payment/callback', async (req, res) => {
     let isCompleted = tx.status === 'completed';
 
     if (!isCompleted && tx.status === 'pending') {
-      const isVerified = await verifyTransactionWithUroPay(tx);
-      if (isVerified) {
-        tx.status = 'completed';
-        await tx.save();
-
-        await processAffiliateConversion(tx);
-
-        if (tx.type === 'subscription') {
-          user.paymentStatus = 'paid';
-          user.isSubscriptionActive = true;
-        }
-        const currentCoins = user.coins !== undefined ? user.coins : user.credits;
-        user.coins = currentCoins + tx.coins;
-        user.credits = user.coins;
-        await user.save();
-
+      const uropayData = await verifyTransactionWithUroPay(tx);
+      if (uropayData) {
+        const paymentEmail = uropayData.email || uropayData.customer_email || uropayData.payer_email || null;
+        await activateSubscription(tx._id.toString(), paymentEmail, null);
         isCompleted = true;
       }
     }
@@ -2221,37 +2327,30 @@ app.get('/api/payment/callback', async (req, res) => {
 
 // POST /api/payment/webhook
 app.post('/api/payment/webhook', async (req, res) => {
-  const { status, note } = req.body;
+  const { status, note, email, payment_id } = req.body;
 
   if (!note || !note.startsWith('Order_')) {
     return res.status(400).json({ error: 'Invalid note parameter.' });
   }
 
   const transactionId = note.split('_')[1];
+  if (!transactionId || !mongoose.Types.ObjectId.isValid(transactionId)) {
+    return res.status(400).json({ error: 'Invalid transaction ID format.' });
+  }
 
   try {
     const tx = await Transaction.findById(transactionId);
     if (!tx) return res.status(404).json({ error: 'Transaction not found.' });
 
-    if (tx.status !== 'pending') {
-      return res.status(200).json({ success: true, message: 'Transaction already processed.' });
+    // Verify webhook authenticity via server-side status check
+    const uropayData = await verifyTransactionWithUroPay(tx);
+    if (!uropayData) {
+      return res.status(400).json({ error: 'Webhook payment verification failed.' });
     }
 
     if (status === 'SUCCESS' || status === 'success') {
-      tx.status = 'completed';
-      await tx.save();
-
-      await processAffiliateConversion(tx);
-
-      const user = await User.findById(tx.userId);
-      if (user) {
-        user.paymentStatus = 'paid';
-        user.isSubscriptionActive = true;
-        const currentCoins = user.coins !== undefined ? user.coins : user.credits;
-        user.coins = currentCoins + tx.coins;
-        user.credits = user.coins;
-        await user.save();
-      }
+      const paymentEmail = email || uropayData.email || uropayData.customer_email || uropayData.payer_email || null;
+      await activateSubscription(tx._id.toString(), paymentEmail, payment_id);
       return res.status(200).json({ success: true });
     } else {
       tx.status = 'failed';
@@ -2640,6 +2739,234 @@ app.post('/api/admin/conversions/:transactionId/reverse', authenticateAdmin, asy
   } catch (err) {
     console.error('[Admin Reverse Conversion Error]:', err);
     res.status(500).json({ error: 'Failed to reverse commission conversion.' });
+  }
+});
+
+// GET /api/user/dashboard
+app.get('/api/user/dashboard', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ error: 'User profile not found.' });
+
+    // Look up active subscription in database
+    const Subscription = mongoose.model('Subscription');
+    const activeSub = await Subscription.findOne({
+      userId: user._id,
+      status: 'active',
+      endDate: { $gt: new Date() }
+    });
+
+    const isSubActive = !!activeSub;
+    const planName = activeSub ? activeSub.planId : (user.subscription && user.subscription.active ? user.subscription.plan : 'None');
+    const startDate = activeSub ? activeSub.startDate : (user.subscription && user.subscription.active ? user.subscription.startedAt : null);
+    const endDate = activeSub ? activeSub.endDate : (user.subscription && user.subscription.active ? user.subscription.expiresAt : null);
+
+    res.status(200).json({
+      success: true,
+      username: user.username,
+      email: user.email || 'None',
+      emailVerified: user.emailVerified,
+      plan: planName || 'None',
+      subscriptionStatus: isSubActive ? 'Active' : 'Inactive',
+      startDate: startDate ? new Date(startDate).toISOString().split('T')[0] : 'N/A',
+      endDate: endDate ? new Date(endDate).toISOString().split('T')[0] : 'N/A'
+    });
+  } catch (err) {
+    console.error('[Get Dashboard Error]:', err);
+    res.status(500).json({ error: 'Failed to retrieve account dashboard statistics.' });
+  }
+});
+
+// GET /api/admin/payments/search (Admin Payment Recovery Search)
+app.get('/api/admin/payments/search', authenticateAdmin, async (req, res) => {
+  const { q } = req.query;
+  if (!q) {
+    return res.status(400).json({ error: 'Search query parameter (q) is required.' });
+  }
+
+  try {
+    const queryStr = String(q).trim();
+    
+    // Find matching users if q is a username
+    const matchedUsers = await User.find({
+      username: { $regex: new RegExp(queryStr, 'i') }
+    });
+    const matchedUserIds = matchedUsers.map(u => u._id);
+
+    const Payment = mongoose.model('Payment');
+    const Subscription = mongoose.model('Subscription');
+
+    // Search payments
+    const payments = await Payment.find({
+      $or: [
+        { transactionId: queryStr },
+        { paymentId: queryStr },
+        { email: { $regex: new RegExp(queryStr, 'i') } },
+        { userId: { $in: matchedUserIds } }
+      ]
+    }).populate('userId', 'username email');
+
+    // Search subscriptions
+    const subscriptions = await Subscription.find({
+      $or: [
+        { transactionId: queryStr },
+        { paymentId: queryStr },
+        { userId: { $in: matchedUserIds } }
+      ]
+    }).populate('userId', 'username email');
+
+    res.status(200).json({ success: true, payments, subscriptions });
+  } catch (err) {
+    console.error('[Admin Payment Search Error]:', err);
+    res.status(500).json({ error: 'Failed to query payments registry.' });
+  }
+});
+
+// POST /api/admin/payments/associate (Admin Manual Payment Linkage)
+app.post('/api/admin/payments/associate', authenticateAdmin, async (req, res) => {
+  const { transactionId, targetUserId } = req.body;
+  if (!transactionId || !targetUserId) {
+    return res.status(400).json({ error: 'Transaction ID and Target User ID are required.' });
+  }
+
+  try {
+    const user = await User.findById(targetUserId);
+    if (!user) return res.status(404).json({ error: 'Target user not found.' });
+
+    const Payment = mongoose.model('Payment');
+    const Subscription = mongoose.model('Subscription');
+    const PaymentSession = mongoose.model('PaymentSession');
+
+    // Update payment
+    const payment = await Payment.findOneAndUpdate(
+      { transactionId },
+      { $set: { userId: user._id } },
+      { new: true }
+    );
+
+    // Update or create subscription
+    let subscription = await Subscription.findOne({ transactionId });
+    if (subscription) {
+      subscription.userId = user._id;
+      subscription.status = 'active';
+      await subscription.save();
+    } else {
+      const session = await PaymentSession.findOne({ paymentSessionId: transactionId });
+      const amount = session ? session.amount : 110;
+      const planId = session ? session.planId : 'Premium Dating Pass';
+
+      subscription = await Subscription.create({
+        userId: user._id,
+        planId,
+        transactionId,
+        amount,
+        status: 'active',
+        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      });
+    }
+
+    // Sync User record status
+    user.paymentStatus = 'paid';
+    user.isSubscriptionActive = true;
+    user.subscription = {
+      active: true,
+      plan: subscription.planId,
+      startedAt: subscription.startDate,
+      expiresAt: subscription.endDate
+    };
+    await user.save();
+
+    res.status(200).json({ success: true, message: 'Payment associated successfully.', payment, subscription });
+  } catch (err) {
+    console.error('[Admin Payment Association Error]:', err);
+    res.status(500).json({ error: 'Failed to associate payment.' });
+  }
+});
+
+// POST /api/admin/login (Admin Portal Login)
+app.post('/api/admin/login', rateLimiter(10, 60 * 1000, 'Too many login attempts. Please try again in a minute.'), async (req, res) => {
+  const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required.' });
+  }
+
+  const safeUsername = String(username).trim();
+  const safePassword = String(password);
+
+  try {
+    const User = mongoose.model('User');
+    const user = await User.findOne({ username: safeUsername });
+
+    if (!user || user.role !== 'admin') {
+      return res.status(401).json({ error: 'Access denied. Incorrect administrator credentials.' });
+    }
+
+    const isMatch = await bcrypt.compare(safePassword, user.passwordHash || '');
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Access denied. Incorrect administrator credentials.' });
+    }
+
+    const token = jwt.sign(
+      { userId: user._id, username: user.username, role: 'admin' },
+      JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+
+    res.setHeader('Set-Cookie', `token=${token}; Path=/; Max-Age=28800; HttpOnly; SameSite=Lax`);
+
+    res.status(200).json({
+      success: true,
+      token,
+      redirect: '/admin/dashboard'
+    });
+  } catch (err) {
+    console.error('[Admin Login Error]:', err);
+    res.status(500).json({ error: 'System failure processing admin authentication.' });
+  }
+});
+
+// POST /api/admin/logout (Admin Logout API)
+app.post('/api/admin/logout', (req, res) => {
+  res.clearCookie('token');
+  res.setHeader('Set-Cookie', 'token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax');
+  res.status(200).json({ success: true, message: 'Logged out successfully.' });
+});
+
+// POST /api/admin/change-password (Admin Password Management)
+app.post('/api/admin/change-password', authenticateAdmin, async (req, res) => {
+  const { newPassword, confirmPassword } = req.body;
+
+  if (!newPassword || !confirmPassword) {
+    return res.status(400).json({ error: 'New password and confirm password are required.' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+  }
+
+  if (newPassword !== confirmPassword) {
+    return res.status(400).json({ error: 'New passwords do not match.' });
+  }
+
+  try {
+    const User = mongoose.model('User');
+    const user = await User.findById(req.user.userId);
+
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied. Administrator privileges required.' });
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Admin password updated successfully.'
+    });
+  } catch (err) {
+    console.error('[Admin Password Change Error]:', err);
+    res.status(500).json({ error: 'System failure updating admin password.' });
   }
 });
 

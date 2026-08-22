@@ -117,38 +117,21 @@
       <div id="successBox" class="success-msg"></div>
 
       <!-- LOGIN FORM -->
-      <form id="loginForm" class="auth-form active" onsubmit="handleAuthSubmit(event, 'login')">
+      <form id="loginForm" class="auth-form active" onsubmit="handleLoginSubmit(event)">
         <div class="input-group">
-          <label>Phone Number</label>
-          <div class="phone-input-container">
-            <span class="country-code-badge">+91</span>
-            <input type="tel" id="loginPhone" class="phone-input-field" maxlength="10" placeholder="9876543210"
-              required>
-            <button type="button" id="loginGetOtpBtn" class="inline-otp-btn" onclick="sendFast2smsOtp('login')">Get
-              OTP</button>
-          </div>
+          <label for="loginUsernameOrEmail">Username or Email</label>
+          <input type="text" id="loginUsernameOrEmail" class="cyber-input" placeholder="Enter username or email" required>
         </div>
-
-        <!-- Inline OTP Field -->
-        <div class="input-group" id="loginOtpGroup" style="display: none; margin-top: 15px;">
-          <label for="loginOtp">Verification Code (OTP)</label>
-          <input type="text" id="loginOtp" class="cyber-input" placeholder="Enter 6-digit OTP" maxlength="6"
-            pattern="\d{6}">
-          <div
-            style="font-size: 12px; color: var(--text-dim); margin-top: 8px; display: flex; justify-content: space-between;">
-            <span>Code expires in: <strong id="loginOtpTimerVal" style="color: #ff4a4a;">05:00</strong></span>
-            <button type="button" id="loginResendBtn"
-              style="background: none; border: none; cursor: pointer; color: var(--accent-pink); padding: 0; outline: none; font-family: var(--font-body); font-weight: 600;"
-              onclick="sendFast2smsOtp('login')">Resend Code</button>
-          </div>
+        <div class="input-group">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" class="cyber-input" placeholder="••••••••" required>
         </div>
-
-        <button type="submit" id="loginSubmitBtn" class="btn-cyber" style="margin-top: 20px;">Verify & Continue
-          ❤️</button>
+        <a href="/forgot-password.html" class="forgot-link">Forgot Password?</a>
+        <button type="submit" id="loginSubmitBtn" class="btn-cyber" style="margin-top: 20px;">Sign In ❤️</button>
       </form>
 
       <!-- SIGNUP FORM -->
-      <form id="signupForm" class="auth-form" onsubmit="handleAuthSubmit(event, 'signup')">
+      <form id="signupForm" class="auth-form" onsubmit="handleSignupSubmit(event)">
         <div class="input-group">
           <label for="signupName">Full Name</label>
           <input type="text" id="signupName" class="cyber-input" placeholder="Your Name" required>
@@ -158,72 +141,23 @@
           <input type="text" id="signupUsername" class="cyber-input" placeholder="Choose a username..." required>
         </div>
         <div class="input-group">
-          <label>Phone Number</label>
-          <div class="phone-input-container">
-            <span class="country-code-badge">+91</span>
-            <input type="tel" id="signupPhone" class="phone-input-field" maxlength="10" placeholder="9876543210"
-              required>
-            <button type="button" id="signupGetOtpBtn" class="inline-otp-btn" onclick="sendFast2smsOtp('signup')">Get
-              OTP</button>
-          </div>
+          <label for="signupEmail">Email (Optional)</label>
+          <input type="email" id="signupEmail" class="cyber-input" placeholder="you@example.com (optional)">
         </div>
-
-        <!-- Inline OTP Field -->
-        <div class="input-group" id="signupOtpGroup" style="display: none; margin-top: 15px;">
-          <label for="signupOtp">Verification Code (OTP)</label>
-          <input type="text" id="signupOtp" class="cyber-input" placeholder="Enter 6-digit OTP" maxlength="6"
-            pattern="\d{6}">
-          <div
-            style="font-size: 12px; color: var(--text-dim); margin-top: 8px; display: flex; justify-content: space-between;">
-            <span>Code expires in: <strong id="signupOtpTimerVal" style="color: #ff4a4a;">05:00</strong></span>
-            <button type="button" id="signupResendBtn"
-              style="background: none; border: none; cursor: pointer; color: var(--accent-pink); padding: 0; outline: none; font-family: var(--font-body); font-weight: 600;"
-              onclick="sendFast2smsOtp('signup')">Resend Code</button>
-          </div>
+        <div class="input-group">
+          <label for="signupPassword">Password</label>
+          <input type="password" id="signupPassword" class="cyber-input" placeholder="••••••••" required>
         </div>
-
-        <button type="submit" id="signupSubmitBtn" class="btn-cyber" style="margin-top: 20px;">Verify & Continue
-          ❤️</button>
+        <div class="input-group">
+          <label for="signupConfirmPassword">Confirm Password</label>
+          <input type="password" id="signupConfirmPassword" class="cyber-input" placeholder="••••••••" required>
+        </div>
+        <button type="submit" id="signupSubmitBtn" class="btn-cyber" style="margin-top: 20px;">Create Account ❤️</button>
       </form>
     </div>
   </div>
 
-  <script type="text/javascript">
-    (function loadOtpScript(urls) {
-      let i = 0;
-
-      function attempt() {
-        const s = document.createElement('script');
-        s.src = urls[i];
-        s.async = true;
-
-        s.onload = () => {
-          console.log('MSG91 OTP SDK loaded');
-        };
-
-        s.onerror = () => {
-          i++;
-          if (i < urls.length) {
-            attempt();
-          } else {
-            console.error('MSG91 OTP SDK failed to load');
-          }
-        };
-
-        document.head.appendChild(s);
-      }
-
-      attempt();
-    })([
-      'https://verify.msg91.com/otp-provider.js',
-      'https://verify.phone91.com/otp-provider.js'
-    ]);
-  </script>
-
   <script>
-    let expiryTimers = {};
-    let cooldownTimers = {};
-
     document.addEventListener("DOMContentLoaded", () => {
       const urlParams = new URLSearchParams(window.location.search);
       const tab = urlParams.get('tab');
@@ -234,6 +168,10 @@
       const message = urlParams.get('message');
       if (message === 'auth') {
         showAlert('error', 'Please log in or sign up first to start chatting! ❤️');
+      } else if (message === 'email_verified') {
+        showAlert('success', 'Your email has been successfully verified! You can now log in. 💖');
+      } else if (message === 'email_verification_failed') {
+        showAlert('error', 'The email verification link is invalid or has expired. ❌');
       }
 
       // Heart floating animation
@@ -276,304 +214,111 @@
       box.style.display = 'block';
     }
 
-    function startExpiryTimer(formType, durationSeconds) {
-      if (expiryTimers[formType]) clearInterval(expiryTimers[formType]);
-
-      const timerVal = document.getElementById(formType === 'login' ? 'loginOtpTimerVal' : 'signupOtpTimerVal');
-      if (!timerVal) return;
-      let secondsLeft = durationSeconds;
-
-      function updateDisplay() {
-        const m = Math.floor(secondsLeft / 60).toString().padStart(2, '0');
-        const s = (secondsLeft % 60).toString().padStart(2, '0');
-        timerVal.textContent = `${m}:${s}`;
-      }
-
-      updateDisplay();
-
-      expiryTimers[formType] = setInterval(() => {
-        secondsLeft--;
-        if (secondsLeft <= 0) {
-          clearInterval(expiryTimers[formType]);
-          timerVal.textContent = "00:00";
-          showAlert('error', 'Verification code has expired. Please click Resend Code.');
-        } else {
-          updateDisplay();
-        }
-      }, 1000);
-    }
-
-    function startCooldownTimer(formType, durationSeconds) {
-      if (cooldownTimers[formType]) clearInterval(cooldownTimers[formType]);
-
-      const getOtpBtn = document.getElementById(formType === 'login' ? 'loginGetOtpBtn' : 'signupGetOtpBtn');
-      const resendBtn = document.getElementById(formType === 'login' ? 'loginResendBtn' : 'signupResendBtn');
-
-      if (getOtpBtn) {
-        getOtpBtn.disabled = true;
-        getOtpBtn.style.opacity = '0.5';
-        getOtpBtn.style.cursor = 'not-allowed';
-      }
-      if (resendBtn) {
-        resendBtn.disabled = true;
-        resendBtn.style.opacity = '0.5';
-        resendBtn.style.cursor = 'not-allowed';
-      }
-
-      let secondsLeft = durationSeconds;
-      if (getOtpBtn) getOtpBtn.textContent = `${secondsLeft}s`;
-      if (resendBtn) resendBtn.textContent = `Resend Code (${secondsLeft}s)`;
-
-      cooldownTimers[formType] = setInterval(() => {
-        secondsLeft--;
-        if (secondsLeft <= 0) {
-          clearInterval(cooldownTimers[formType]);
-
-          if (getOtpBtn) {
-            getOtpBtn.disabled = false;
-            getOtpBtn.style.opacity = '1';
-            getOtpBtn.style.cursor = 'pointer';
-            getOtpBtn.textContent = 'Get OTP';
-          }
-          if (resendBtn) {
-            resendBtn.disabled = false;
-            resendBtn.style.opacity = '1';
-            resendBtn.style.cursor = 'pointer';
-            resendBtn.textContent = 'Resend Code';
-          }
-        } else {
-          if (getOtpBtn) getOtpBtn.textContent = `${secondsLeft}s`;
-          if (resendBtn) resendBtn.textContent = `Resend Code (${secondsLeft}s)`;
-        }
-      }, 1000);
-    }
-
-    function ensureMsg91SDK(configuration, callback) {
-      if (typeof window.initSendOTP === 'function') {
-        window.initSendOTP(configuration);
-        callback();
-        return;
-      }
-
-      let script = document.querySelector('script[src*="otp-provider.js"]');
-      if (script) {
-        const oldOnload = script.onload;
-        script.onload = () => {
-          if (oldOnload) oldOnload();
-          window.initSendOTP(configuration);
-          callback();
-        };
-        return;
-      }
-
-      const urls = [
-        'https://verify.msg91.com/otp-provider.js',
-        'https://verify.phone91.com/otp-provider.js'
-      ];
-      let i = 0;
-
-      function attempt() {
-        const s = document.createElement('script');
-        s.src = urls[i];
-        s.async = true;
-
-        s.onload = () => {
-          console.log('MSG91 OTP SDK loaded');
-          window.initSendOTP(configuration);
-          callback();
-        };
-
-        s.onerror = () => {
-          i++;
-          if (i < urls.length) {
-            attempt();
-          } else {
-            console.error('MSG91 OTP SDK failed to load');
-            showAlert('error', 'Failed to load OTP service. Please check your internet connection.');
-          }
-        };
-
-        document.head.appendChild(s);
-      }
-
-      attempt();
-    }
-
-    // 1. Send SMS via MSG91 custom UI integration
-    window.sendFast2smsOtp = function (formType) {
-      clearAlerts();
-
-      const phoneInput = document.getElementById(
-        formType === 'login' ? 'loginPhone' : 'signupPhone'
-      );
-
-      if (!phoneInput) {
-        showAlert('error', 'Phone number field not found.');
-        return;
-      }
-
-      const rawPhone = phoneInput.value
-        .trim()
-        .replace(/\D/g, '')
-        .slice(-10);
-
-      if (rawPhone.length !== 10) {
-        showAlert('error', 'Please enter a valid 10-digit mobile number.');
-        return;
-      }
-
-      const identifier = '91' + rawPhone;
-
-      const configuration = {
-        widgetId: "366875726e78343536333438",
-        tokenAuth: "563075TwrmEgiHFDIM6a8895ecP1",
-        identifier: identifier,
-        exposeMethods: true,
-        success: (data) => {
-          console.log('MSG91 OTP verified successfully:', data);
-          window.msg91AccessToken = data.message;
-          if (window.pendingAuthSubmit) {
-            window.pendingAuthSubmit();
-          }
-        },
-        failure: (error) => {
-          console.error('MSG91 OTP error:', error);
-          showAlert('error', typeof error === 'string' ? error : (error.message || 'OTP verification failed. Please try again.'));
-          const submitBtn = document.getElementById(window.pendingFormType === 'login' ? 'loginSubmitBtn' : 'signupSubmitBtn');
-          if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Verify & Continue ❤️';
-          }
-        }
-      };
-
-      ensureMsg91SDK(configuration, () => {
-        let checks = 0;
-        const checkInterval = setInterval(() => {
-          checks++;
-
-          const otpGroup = document.getElementById(formType === 'login' ? 'loginOtpGroup' : 'signupOtpGroup');
-          const isResend = otpGroup && otpGroup.style.display === 'block';
-
-          if (isResend && typeof window.retryOtp === 'function') {
-            clearInterval(checkInterval);
-            window.retryOtp('text',
-              (response) => {
-                console.log('MSG91 OTP resent:', response);
-                showAlert('success', 'Verification code resent successfully.');
-                startCooldownTimer(formType, 60);
-                startExpiryTimer(formType, 300);
-              },
-              (error) => {
-                console.error('MSG91 retry OTP error:', error);
-                showAlert('error', 'Could not resend OTP. Please try again.');
-              }
-            );
-          } else if (typeof window.sendOtp === 'function') {
-            clearInterval(checkInterval);
-            window.sendOtp(
-              identifier,
-              (response) => {
-                console.log('MSG91 OTP sent:', response);
-                showAlert('success', 'Verification code sent to your phone. 💖');
-                const otpGroupElement = document.getElementById(formType === 'login' ? 'loginOtpGroup' : 'signupOtpGroup');
-                if (otpGroupElement) otpGroupElement.style.display = 'block';
-                startCooldownTimer(formType, 60);
-                startExpiryTimer(formType, 300);
-              },
-              (error) => {
-                console.error('MSG91 send OTP error:', error);
-                showAlert('error', 'Could not send OTP. Please try again.');
-              }
-            );
-          } else if (checks > 20) {
-            clearInterval(checkInterval);
-            console.error('MSG91 SDK methods not ready.');
-            showAlert('error', 'OTP service is temporarily unavailable. Please try again.');
-          }
-        }, 100);
-      });
-    };
-
-    // 2. Verify OTP & Authenticate Session
-    window.handleAuthSubmit = function (event, formType) {
+    window.handleLoginSubmit = function (event) {
       event.preventDefault();
       clearAlerts();
 
-      const phoneInput = document.getElementById(formType === 'login' ? 'loginPhone' : 'signupPhone');
-      const otpInput = document.getElementById(formType === 'login' ? 'loginOtp' : 'signupOtp');
-      const submitBtn = document.getElementById(formType === 'login' ? 'loginSubmitBtn' : 'signupSubmitBtn');
+      const usernameOrEmail = document.getElementById('loginUsernameOrEmail').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      const submitBtn = document.getElementById('loginSubmitBtn');
 
-      const otpVal = otpInput.value.trim();
-      const rawPhone = phoneInput.value.trim().replace(/\D/g, '').slice(-10);
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Signing in...';
 
-      if (!otpVal) {
-        showAlert('error', 'Please request and enter your verification OTP first.');
-        return;
-      }
+      fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usernameOrEmail, password })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          showAlert('error', data.error);
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Sign In ❤️';
+        } else {
+          localStorage.setItem('token', data.token);
+          localStorage.setItem('userId', data.userId);
+          localStorage.setItem('username', data.username);
+          if (data.credits !== undefined) localStorage.setItem('credits', data.credits);
+          if (data.coins !== undefined) localStorage.setItem('coins', data.coins);
+          localStorage.setItem('isSubscriptionActive', data.isSubscriptionActive);
+          if (data.paymentStatus) localStorage.setItem('paymentStatus', data.paymentStatus);
 
-      if (typeof window.verifyOtp !== 'function') {
-        showAlert('error', 'OTP service is not initialized. Please try again.');
+          showAlert('success', 'Authenticated successfully! Redirecting...');
+          setTimeout(() => {
+            window.location.href = data.redirect || '/';
+          }, 1200);
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        showAlert('error', 'Login connection failed.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign In ❤️';
+      });
+    };
+
+    window.handleSignupSubmit = function (event) {
+      event.preventDefault();
+      clearAlerts();
+
+      const fullname = document.getElementById('signupName').value.trim();
+      const username = document.getElementById('signupUsername').value.trim();
+      const email = document.getElementById('signupEmail').value.trim();
+      const password = document.getElementById('signupPassword').value;
+      const confirmPassword = document.getElementById('signupConfirmPassword').value;
+      const submitBtn = document.getElementById('signupSubmitBtn');
+
+      if (password !== confirmPassword) {
+        showAlert('error', 'Passwords do not match.');
+        submitBtn.disabled = false;
         return;
       }
 
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Verifying...';
+      submitBtn.textContent = 'Creating account...';
 
-      window.pendingFormType = formType;
-      window.pendingAuthSubmit = function () {
-        const payload = {
-          phone: rawPhone,
-          otpToken: window.msg91AccessToken,
-          fullName: formType === 'signup' ? document.getElementById('signupName').value.trim() : undefined,
-          username: formType === 'signup' ? document.getElementById('signupUsername').value.trim() : undefined,
+      fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullname,
+          username,
+          email,
+          password,
+          confirmPassword,
           referralCode: localStorage.getItem('refCode') || null
-        };
-
-        fetch('/api/auth/verify-phone-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
         })
-          .then(res => res.json())
-          .then(data => {
-            if (data.error) {
-              showAlert('error', data.error);
-              submitBtn.disabled = false;
-              submitBtn.textContent = 'Verify & Continue ❤️';
-            } else {
-              localStorage.setItem('token', data.token);
-              localStorage.setItem('userId', data.userId);
-              localStorage.setItem('username', data.username);
-              if (data.credits !== undefined) localStorage.setItem('credits', data.credits);
-              if (data.paymentStatus) localStorage.setItem('paymentStatus', data.paymentStatus);
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          showAlert('error', data.error);
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Create Account ❤️';
+        } else {
+          localStorage.setItem('token', data.token);
+          localStorage.setItem('userId', data.userId);
+          localStorage.setItem('username', data.username);
+          if (data.credits !== undefined) localStorage.setItem('credits', data.credits);
+          if (data.coins !== undefined) localStorage.setItem('coins', data.coins);
+          localStorage.setItem('isSubscriptionActive', 'false');
+          if (data.paymentStatus) localStorage.setItem('paymentStatus', data.paymentStatus);
 
-              showAlert('success', 'Authenticated successfully! Redirecting...');
-
-              if (expiryTimers[formType]) clearInterval(expiryTimers[formType]);
-              if (cooldownTimers[formType]) clearInterval(cooldownTimers[formType]);
-
-              setTimeout(() => {
-                window.location.href = data.redirect || '/';
-              }, 1200);
-            }
-          })
-          .catch(err => {
-            console.error(err);
-            showAlert('error', 'Verification failed. Please try again.');
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Verify & Continue ❤️';
-          });
-      };
-
-      try {
-        window.verifyOtp(otpVal);
-      } catch (error) {
-        console.error('MSG91 verifyOtp call error:', error);
-        showAlert('error', 'OTP verification failed. Please try again.');
+          const successMsg = data.message || 'Account created successfully! Redirecting... 💖';
+          showAlert('success', successMsg);
+          setTimeout(() => {
+            window.location.href = data.redirect || '/';
+          }, 2000);
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        showAlert('error', 'Signup connection failed.');
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Verify & Continue ❤️';
-      }
+        submitBtn.textContent = 'Create Account ❤️';
+      });
     };
   </script>
 </body>

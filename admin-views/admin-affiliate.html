@@ -1,10 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Influencer Affiliate Dashboard - Admin Panel</title>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
   <style>
     :root {
@@ -30,7 +33,10 @@
       padding: 30px;
     }
 
-    h1, h2, h3, h4 {
+    h1,
+    h2,
+    h3,
+    h4 {
       font-family: 'Playfair Display', serif;
       font-weight: 700;
       letter-spacing: 0.5px;
@@ -60,7 +66,8 @@
       align-items: center;
     }
 
-    button, .btn {
+    button,
+    .btn {
       background: linear-gradient(135deg, var(--accent-pink) 0%, var(--rose-gold) 100%);
       color: var(--text-main);
       border: none;
@@ -73,7 +80,8 @@
       transition: all 0.3s ease;
     }
 
-    button:hover, .btn:hover {
+    button:hover,
+    .btn:hover {
       transform: translateY(-2px);
       box-shadow: 0 6px 20px rgba(255, 42, 117, 0.5);
     }
@@ -275,7 +283,9 @@
       letter-spacing: 0.5px;
     }
 
-    .form-group input, .form-group select, .form-group textarea {
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
       width: 100%;
       background: rgba(0, 0, 0, 0.3);
       border: 1px solid rgba(255, 42, 117, 0.2);
@@ -289,7 +299,9 @@
       transition: border-color 0.3s;
     }
 
-    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
       border-color: var(--rose-gold);
       box-shadow: 0 0 10px rgba(255, 77, 166, 0.2);
     }
@@ -405,21 +417,25 @@
       cursor: pointer;
       transition: all 0.3s ease;
     }
+
     .date-filter-select:focus {
       border-color: var(--rose-gold);
     }
   </style>
 </head>
+
 <body>
 
   <div class="dashboard-header">
     <div>
       <h1>Influencer Affiliate Tracking</h1>
-      <p style="color: var(--text-dim); font-size: 14px; margin-top: 5px;">Configure affiliate creators, monitor conversion referrals, payouts, and track ROI</p>
+      <p style="color: var(--text-dim); font-size: 14px; margin-top: 5px;">Configure affiliate creators, monitor
+        conversion referrals, payouts, and track ROI</p>
     </div>
     <div class="btn-container">
       <div style="display: flex; align-items: center; gap: 8px; margin-right: 15px;">
-        <span style="color: var(--text-dim); font-size: 12px; font-weight: 600; text-transform: uppercase;">Range:</span>
+        <span
+          style="color: var(--text-dim); font-size: 12px; font-weight: 600; text-transform: uppercase;">Range:</span>
         <select id="date-filter" class="date-filter-select" onchange="handleDateFilterChange()">
           <option value="today">Today</option>
           <option value="yesterday">Yesterday</option>
@@ -432,6 +448,12 @@
       <button onclick="openModal('modal-add-affiliate')">+ Add Creator</button>
       <button class="btn-secondary" onclick="openModal('modal-add-promo')">+ Promo Code</button>
       <button class="btn-cyan" onclick="openModal('modal-reverse')">↺ Reverse Commission</button>
+      <button class="btn-secondary" onclick="openModal('modal-change-password')"
+        style="background: linear-gradient(135deg, #ff2a75 0%, #ff4da6 100%); color: white; border: none; font-weight: bold; cursor: pointer; border-radius: 8px;">🔑
+        Change Password</button>
+      <button class="btn-secondary" onclick="adminLogout()"
+        style="background: rgba(255, 74, 74, 0.15); color: #ff4a4a; border: 1px solid rgba(255, 74, 74, 0.3); font-weight: bold; cursor: pointer; border-radius: 8px;">🚪
+        Logout</button>
     </div>
   </div>
 
@@ -492,7 +514,8 @@
       </thead>
       <tbody id="partners-table-body">
         <tr>
-          <td colspan="11" style="text-align: center; padding: 30px; color: var(--text-dim);">Loading affiliate partners...</td>
+          <td colspan="11" style="text-align: center; padding: 30px; color: var(--text-dim);">Loading affiliate
+            partners...</td>
         </tr>
       </tbody>
     </table>
@@ -521,13 +544,48 @@
     </table>
   </div>
 
+  <!-- MODAL: CHANGE PASSWORD -->
+  <div class="modal" id="modal-change-password">
+    <div class="modal-content" style="max-width: 400px;">
+      <button class="modal-close" onclick="closeModal('modal-change-password')">&times;</button>
+      <h2>Change Admin Password</h2>
+      <p style="color: var(--text-dim); margin-bottom: 20px; font-size: 13px;">Securely update the password for admin
+        credentials.</p>
+
+      <div id="changePasswordStatus"
+        style="font-size: 13px; margin-bottom: 15px; display: none; text-align: center; padding: 8px; border-radius: 6px;">
+      </div>
+
+      <form id="form-change-password" onsubmit="submitChangePassword(event)">
+        <div class="form-group" style="margin-bottom: 15px;">
+          <label
+            style="display: block; margin-bottom: 5px; color: var(--text-muted); font-size: 12px; font-weight: 600; text-transform: uppercase;">New
+            Password</label>
+          <input type="password" id="new-admin-password" required placeholder="••••••••"
+            style="width: 100%; padding: 10px; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 42, 117, 0.2); border-radius: 8px; color: white;">
+        </div>
+        <div class="form-group" style="margin-bottom: 20px;">
+          <label
+            style="display: block; margin-bottom: 5px; color: var(--text-muted); font-size: 12px; font-weight: 600; text-transform: uppercase;">Confirm
+            New Password</label>
+          <input type="password" id="confirm-new-admin-password" required placeholder="••••••••"
+            style="width: 100%; padding: 10px; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 42, 117, 0.2); border-radius: 8px; color: white;">
+        </div>
+        <button type="submit" id="btn-submit-change-password"
+          style="width: 100%; padding: 12px; background: linear-gradient(135deg, #ff2a75 0%, #ff4da6 100%); border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer;">Update
+          Password ⚡</button>
+      </form>
+    </div>
+  </div>
+
   <!-- MODAL: ADD AFFILIATE -->
   <div class="modal" id="modal-add-affiliate">
     <div class="modal-content">
       <button class="modal-close" onclick="closeModal('modal-add-affiliate')">&times;</button>
       <h2>Add New Affiliate Creator</h2>
-      <p style="color: var(--text-dim); margin-bottom: 20px; font-size: 13px;">Create partner profiles to generate explicit Mongoose relationships.</p>
-      
+      <p style="color: var(--text-dim); margin-bottom: 20px; font-size: 13px;">Create partner profiles to generate
+        explicit Mongoose relationships.</p>
+
       <form id="form-add-affiliate" onsubmit="submitAddAffiliate(event)">
         <div class="form-row">
           <div class="form-group">
@@ -561,11 +619,13 @@
         </div>
         <div class="form-group">
           <label>Platform User ID Link (Optional - for self-referral protection)</label>
-          <input type="text" id="add-affiliate-userId" placeholder="Mongoose User _id of the affiliate's customer account">
+          <input type="text" id="add-affiliate-userId"
+            placeholder="Mongoose User _id of the affiliate's customer account">
         </div>
         <div class="form-group">
           <label>Notes</label>
-          <textarea id="add-affiliate-notes" rows="3" placeholder="Partnership details, contract links, etc."></textarea>
+          <textarea id="add-affiliate-notes" rows="3"
+            placeholder="Partnership details, contract links, etc."></textarea>
         </div>
         <div style="text-align: right; margin-top: 20px;">
           <button type="submit">Create Partner Profile</button>
@@ -579,8 +639,9 @@
     <div class="modal-content">
       <button class="modal-close" onclick="closeModal('modal-add-promo')">&times;</button>
       <h2>Create & Assign Promo Code</h2>
-      <p style="color: var(--text-dim); margin-bottom: 20px; font-size: 13px;">Establish an explicit relationship. Never guess Instagram ownership.</p>
-      
+      <p style="color: var(--text-dim); margin-bottom: 20px; font-size: 13px;">Establish an explicit relationship. Never
+        guess Instagram ownership.</p>
+
       <form id="form-add-promo" onsubmit="submitAddPromo(event)">
         <div class="form-row">
           <div class="form-group">
@@ -616,8 +677,9 @@
     <div class="modal-content">
       <button class="modal-close" onclick="closeModal('modal-reverse')">&times;</button>
       <h2>Reverse Affiliate Commission</h2>
-      <p style="color: var(--text-dim); margin-bottom: 20px; font-size: 13px;">Reverse commission from refunds. Maintains the complete audit trail.</p>
-      
+      <p style="color: var(--text-dim); margin-bottom: 20px; font-size: 13px;">Reverse commission from refunds.
+        Maintains the complete audit trail.</p>
+
       <form id="form-reverse" onsubmit="submitReverseConversion(event)">
         <div class="form-group">
           <label>Transaction ID / Order ID</label>
@@ -639,8 +701,10 @@
     <div class="modal-content" style="max-width: 1100px;">
       <button class="modal-close" onclick="closeModal('modal-detail')">&times;</button>
       <h2 id="detail-partner-name">Creator Profile</h2>
-      <p id="detail-partner-instagram" style="color: var(--rose-gold); margin-top: 5px; font-size: 15px; font-weight: 600; cursor: pointer;">@username</p>
-      
+      <p id="detail-partner-instagram"
+        style="color: var(--rose-gold); margin-top: 5px; font-size: 15px; font-weight: 600; cursor: pointer;">@username
+      </p>
+
       <div class="detail-grid">
         <div class="detail-sidebar">
           <h3>Partner Info</h3>
@@ -670,36 +734,57 @@
           </div>
           <div class="detail-item">
             <div class="detail-label">Notes</div>
-            <div class="detail-value" id="detail-notes" style="font-size: 13px; line-height: 1.4; color: var(--text-dim);">-</div>
+            <div class="detail-value" id="detail-notes"
+              style="font-size: 13px; line-height: 1.4; color: var(--text-dim);">-</div>
           </div>
         </div>
 
         <div>
           <!-- PERIOD PERFORMANCE GRID -->
           <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px;">
-            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 42, 117, 0.1); border-radius: 10px; padding: 15px; text-align: center;">
-              <h4 style="color: var(--rose-gold); margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase;">Today</h4>
-              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Users: <span id="detail-today-users" style="color: var(--text-main); font-weight: 600;">0</span></div>
-              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Purchases: <span id="detail-today-purchases" style="color: var(--text-main); font-weight: 600;">0</span></div>
-              <div style="font-size: 12px; color: var(--text-dim);">Revenue: <span id="detail-today-revenue" style="color: var(--accent-pink); font-weight: 600;">₹0.00</span></div>
+            <div
+              style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 42, 117, 0.1); border-radius: 10px; padding: 15px; text-align: center;">
+              <h4 style="color: var(--rose-gold); margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase;">Today
+              </h4>
+              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Users: <span
+                  id="detail-today-users" style="color: var(--text-main); font-weight: 600;">0</span></div>
+              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Purchases: <span
+                  id="detail-today-purchases" style="color: var(--text-main); font-weight: 600;">0</span></div>
+              <div style="font-size: 12px; color: var(--text-dim);">Revenue: <span id="detail-today-revenue"
+                  style="color: var(--accent-pink); font-weight: 600;">₹0.00</span></div>
             </div>
-            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 42, 117, 0.1); border-radius: 10px; padding: 15px; text-align: center;">
-              <h4 style="color: var(--rose-gold); margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase;">Last 7 Days</h4>
-              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Users: <span id="detail-7days-users" style="color: var(--text-main); font-weight: 600;">0</span></div>
-              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Purchases: <span id="detail-7days-purchases" style="color: var(--text-main); font-weight: 600;">0</span></div>
-              <div style="font-size: 12px; color: var(--text-dim);">Revenue: <span id="detail-7days-revenue" style="color: var(--accent-pink); font-weight: 600;">₹0.00</span></div>
+            <div
+              style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 42, 117, 0.1); border-radius: 10px; padding: 15px; text-align: center;">
+              <h4 style="color: var(--rose-gold); margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase;">Last
+                7 Days</h4>
+              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Users: <span
+                  id="detail-7days-users" style="color: var(--text-main); font-weight: 600;">0</span></div>
+              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Purchases: <span
+                  id="detail-7days-purchases" style="color: var(--text-main); font-weight: 600;">0</span></div>
+              <div style="font-size: 12px; color: var(--text-dim);">Revenue: <span id="detail-7days-revenue"
+                  style="color: var(--accent-pink); font-weight: 600;">₹0.00</span></div>
             </div>
-            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 42, 117, 0.1); border-radius: 10px; padding: 15px; text-align: center;">
-              <h4 style="color: var(--rose-gold); margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase;">Last 30 Days</h4>
-              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Users: <span id="detail-30days-users" style="color: var(--text-main); font-weight: 600;">0</span></div>
-              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Purchases: <span id="detail-30days-purchases" style="color: var(--text-main); font-weight: 600;">0</span></div>
-              <div style="font-size: 12px; color: var(--text-dim);">Revenue: <span id="detail-30days-revenue" style="color: var(--accent-pink); font-weight: 600;">₹0.00</span></div>
+            <div
+              style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 42, 117, 0.1); border-radius: 10px; padding: 15px; text-align: center;">
+              <h4 style="color: var(--rose-gold); margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase;">Last
+                30 Days</h4>
+              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Users: <span
+                  id="detail-30days-users" style="color: var(--text-main); font-weight: 600;">0</span></div>
+              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Purchases: <span
+                  id="detail-30days-purchases" style="color: var(--text-main); font-weight: 600;">0</span></div>
+              <div style="font-size: 12px; color: var(--text-dim);">Revenue: <span id="detail-30days-revenue"
+                  style="color: var(--accent-pink); font-weight: 600;">₹0.00</span></div>
             </div>
-            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 42, 117, 0.1); border-radius: 10px; padding: 15px; text-align: center;">
-              <h4 style="color: var(--rose-gold); margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase;">All Time</h4>
-              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Users: <span id="detail-alltime-users" style="color: var(--text-main); font-weight: 600;">0</span></div>
-              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Purchases: <span id="detail-alltime-purchases" style="color: var(--text-main); font-weight: 600;">0</span></div>
-              <div style="font-size: 12px; color: var(--text-dim);">Revenue: <span id="detail-alltime-revenue" style="color: var(--accent-pink); font-weight: 600;">₹0.00</span></div>
+            <div
+              style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 42, 117, 0.1); border-radius: 10px; padding: 15px; text-align: center;">
+              <h4 style="color: var(--rose-gold); margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase;">All
+                Time</h4>
+              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Users: <span
+                  id="detail-alltime-users" style="color: var(--text-main); font-weight: 600;">0</span></div>
+              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 3px;">Purchases: <span
+                  id="detail-alltime-purchases" style="color: var(--text-main); font-weight: 600;">0</span></div>
+              <div style="font-size: 12px; color: var(--text-dim);">Revenue: <span id="detail-alltime-revenue"
+                  style="color: var(--accent-pink); font-weight: 600;">₹0.00</span></div>
             </div>
           </div>
 
@@ -739,7 +824,7 @@
               <h4 style="color: var(--text-main);">Payout List</h4>
               <button onclick="openPayoutModal()" style="padding: 8px 16px; font-size: 12px;">Record Payout</button>
             </div>
-            
+
             <table style="font-size: 13px;">
               <thead>
                 <tr>
@@ -777,7 +862,7 @@
       <button class="modal-close" onclick="closeModal('modal-record-payout')">&times;</button>
       <h2>Record Affiliate Payout</h2>
       <p style="color: var(--text-dim); margin-bottom: 20px; font-size: 13px;">Generate a payout transaction record.</p>
-      
+
       <form id="form-record-payout" onsubmit="submitRecordPayout(event)">
         <input type="hidden" id="payout-affiliate-id">
         <div class="form-group">
@@ -800,8 +885,9 @@
     <div class="modal-content" style="max-width: 450px;">
       <button class="modal-close" onclick="closeModal('modal-complete-payout')">&times;</button>
       <h2>Mark Payout as Completed</h2>
-      <p style="color: var(--text-dim); margin-bottom: 20px; font-size: 13px;">Provide the payment reference details to mark as PAID.</p>
-      
+      <p style="color: var(--text-dim); margin-bottom: 20px; font-size: 13px;">Provide the payment reference details to
+        mark as PAID.</p>
+
       <form id="form-complete-payout" onsubmit="submitCompletePayout(event)">
         <input type="hidden" id="complete-payout-id">
         <div class="form-group">
@@ -831,7 +917,7 @@
     window.addEventListener('DOMContentLoaded', () => {
       const token = localStorage.getItem("token");
       if (!token) {
-        window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname);
+        window.location.href = '/admin';
         return;
       }
       loadDashboardStats();
@@ -870,11 +956,11 @@
           headers: getAuthHeaders()
         });
         if (response.status === 401 || response.status === 403) {
-          window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname);
+          window.location.href = '/admin';
           return;
         }
         const stats = await response.json();
-        
+
         document.getElementById('kpi-total-affiliates').textContent = stats.totalAffiliates || 0;
         document.getElementById('kpi-total-clicks').textContent = (stats.totalClicks || 0).toLocaleString();
         document.getElementById('kpi-total-code-uses').textContent = (stats.totalCodeUses || 0).toLocaleString();
@@ -899,7 +985,7 @@
           return;
         }
         const partners = await response.json();
-        
+
         const select = document.getElementById('add-promo-partner');
         select.innerHTML = '<option value="">-- Select Partner --</option>';
 
@@ -924,7 +1010,7 @@
           tr.onclick = () => viewPartnerDetails(partner._id);
 
           const codes = partner.codes && partner.codes.length > 0 ? partner.codes.join(', ') : '-';
-          
+
           tr.innerHTML = `
             <td>
               <div style="font-weight: 600; color: var(--text-main);">${partner.name}</div>
@@ -969,8 +1055,8 @@
 
         promocodes.forEach(pc => {
           const tr = document.createElement('tr');
-          const ownerText = pc.partner 
-            ? `${pc.partner.name} (<span style="color: var(--rose-gold);">${pc.partner.instagramUsername}</span>)` 
+          const ownerText = pc.partner
+            ? `${pc.partner.name} (<span style="color: var(--rose-gold);">${pc.partner.instagramUsername}</span>)`
             : '<span style="color: var(--text-dim);">Unassigned</span>';
 
           // Safe Created Date resolution
@@ -1044,7 +1130,7 @@
     // Submit Add Affiliate Form
     async function submitAddAffiliate(event) {
       event.preventDefault();
-      
+
       const payload = {
         name: document.getElementById('add-affiliate-name').value,
         email: document.getElementById('add-affiliate-email').value,
@@ -1116,7 +1202,7 @@
     // Submit Reverse Conversion Form
     async function submitReverseConversion(event) {
       event.preventDefault();
-      
+
       const txId = document.getElementById('reverse-tx-id').value;
       const reason = document.getElementById('reverse-reason').value;
 
@@ -1150,7 +1236,7 @@
     async function viewPartnerDetails(partnerId) {
       currentAffiliateId = partnerId;
       openModal('modal-detail');
-      
+
       // Default tab conversions
       switchTab('tab-conversions');
 
@@ -1169,7 +1255,7 @@
         document.getElementById('detail-phone').textContent = partner.phone || '-';
         document.getElementById('detail-commission-pct').textContent = `${partner.commissionPercent}%`;
         document.getElementById('detail-codes-list').textContent = codes.length > 0 ? codes.join(', ') : 'None';
-        
+
         const statusVal = document.getElementById('detail-status');
         statusVal.innerHTML = `<span class="status-badge ${partner.status}">${partner.status}</span>`;
         document.getElementById('detail-created-at').textContent = new Date(partner.createdAt).toLocaleDateString('en-IN', {
@@ -1202,11 +1288,11 @@
         } else {
           conversions.forEach(c => {
             const tr = document.createElement('tr');
-            
+
             let badgeClass = 'active';
             if (c.status === 'reversed') badgeClass = 'terminated';
             if (c.status === 'pending') badgeClass = 'paused';
-            
+
             const dateStr = new Date(c.createdAt).toLocaleDateString('en-IN', {
               day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
             });
@@ -1241,9 +1327,9 @@
               day: '2-digit', month: 'short', year: 'numeric'
             });
             const paidDateStr = p.paidAt ? new Date(p.paidAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '-';
-            
+
             const isPending = p.status === 'pending';
-            const actionBtn = isPending 
+            const actionBtn = isPending
               ? `<button style="padding: 6px 12px; font-size: 11px;" onclick="openCompletePayoutModal('${p._id}')">Complete</button>`
               : `<span style="font-size: 11px; color: var(--text-dim);">Paid on ${paidDateStr}</span>`;
 
@@ -1293,18 +1379,18 @@ Pending Balance:        ₹${partner.totalCommissionPending.toFixed(2)}
 AUDITED CONVERSIONS
 -----------------------------------------
 ${conversions.map((c, i) => {
-  const username = c.customer.username;
-  const statusStr = c.status.toUpperCase();
-  return `#${i + 1} | User: ${username.padEnd(10)} | Code: ${c.promoCode.padEnd(8)} | Paid: ₹${c.amountPaid.toFixed(2).padEnd(6)} | Comm: ₹${c.commissionAmount.toFixed(2).padEnd(6)} | [${statusStr}]`;
-}).join('\n')}
+          const username = c.customer.username;
+          const statusStr = c.status.toUpperCase();
+          return `#${i + 1} | User: ${username.padEnd(10)} | Code: ${c.promoCode.padEnd(8)} | Paid: ₹${c.amountPaid.toFixed(2).padEnd(6)} | Comm: ₹${c.commissionAmount.toFixed(2).padEnd(6)} | [${statusStr}]`;
+        }).join('\n')}
 
 -----------------------------------------
 PAYOUT HISTORY
 -----------------------------------------
 ${payouts.map((p, i) => {
-  const paidAtStr = p.paidAt ? new Date(p.paidAt).toLocaleDateString('en-IN') : 'PENDING';
-  return `#${i + 1} | Amount: ₹${p.amount.toFixed(2).padEnd(8)} | Status: ${p.status.toUpperCase().padEnd(8)} | Method: ${(p.paymentMethod || '-').padEnd(8)} | Ref: ${p.paymentReference || '-'}`;
-}).join('\n')}
+          const paidAtStr = p.paidAt ? new Date(p.paidAt).toLocaleDateString('en-IN') : 'PENDING';
+          return `#${i + 1} | Amount: ₹${p.amount.toFixed(2).padEnd(8)} | Status: ${p.status.toUpperCase().padEnd(8)} | Method: ${(p.paymentMethod || '-').padEnd(8)} | Ref: ${p.paymentReference || '-'}`;
+        }).join('\n')}
 `;
 
         document.getElementById('detail-report-body').innerHTML = `<h3>FINAL PERFORMANCE AUDIT REPORT</h3>\n${report}`;
@@ -1318,7 +1404,7 @@ ${payouts.map((p, i) => {
     function switchTab(tabId) {
       document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
       document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
-      
+
       const tabTarget = document.getElementById(tabId);
       if (tabTarget) tabTarget.classList.add('active');
 
@@ -1408,6 +1494,73 @@ ${payouts.map((p, i) => {
         alert('Server connection error.');
       }
     }
+
+    // Submit Change Password Modal
+    async function submitChangePassword(event) {
+        event.preventDefault();
+        const newPassword = document.getElementById('new-admin-password').value;
+        const confirmPassword = document.getElementById('confirm-new-admin-password').value;
+        const statusDiv = document.getElementById('changePasswordStatus');
+        const submitBtn = document.getElementById('btn-submit-change-password');
+
+        statusDiv.style.display = 'none';
+
+        if (newPassword !== confirmPassword) {
+          statusDiv.style.color = '#ff4a4a';
+          statusDiv.style.background = 'rgba(255, 74, 74, 0.1)';
+          statusDiv.textContent = 'New passwords do not match.';
+          statusDiv.style.display = 'block';
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Updating...';
+
+        try {
+          const response = await fetch('/api/admin/change-password', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ newPassword, confirmPassword })
+          });
+          const data = await response.json();
+          if (data.error) {
+            statusDiv.style.color = '#ff4a4a';
+            statusDiv.style.background = 'rgba(255, 74, 74, 0.1)';
+            statusDiv.textContent = data.error;
+            statusDiv.style.display = 'block';
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Update Password ⚡';
+          } else {
+            statusDiv.style.color = '#ff2a75';
+            statusDiv.style.background = 'rgba(255, 42, 117, 0.1)';
+            statusDiv.textContent = 'Password updated successfully! 🚀';
+            statusDiv.style.display = 'block';
+            document.getElementById('new-admin-password').value = '';
+            document.getElementById('confirm-new-admin-password').value = '';
+            setTimeout(() => {
+              closeModal('modal-change-password');
+              statusDiv.style.display = 'none';
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Update Password ⚡';
+            }, 1500);
+          }
+        } catch (err) {
+          console.error(err);
+          statusDiv.style.color = '#ff4a4a';
+          statusDiv.style.background = 'rgba(255, 74, 74, 0.1)';
+          statusDiv.textContent = 'Server connection error.';
+          statusDiv.style.display = 'block';
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Update Password ⚡';
+        }
+      }
+
+    // Admin Logout Function
+    function adminLogout() {
+      localStorage.removeItem('token');
+      window.location.href = '/admin/logout';
+    }
   </script>
 </body>
+
 </html>

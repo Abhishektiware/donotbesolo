@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Access Grid 🔑 - donotbesolo</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .admin-login-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .admin-card {
+      width: 100%;
+      max-width: 450px;
+      position: relative;
+    }
+
+    .admin-title {
+      font-size: 32px;
+      color: var(--accent-pink);
+      text-shadow: var(--pink-glow-shadow);
+      margin-bottom: 8px;
+      text-align: center;
+      font-family: var(--font-head);
+    }
+
+    .admin-subtitle {
+      font-size: 15px;
+      color: var(--text-muted);
+      text-align: center;
+      margin-bottom: 35px;
+      line-height: 1.5;
+    }
+
+    .error-msg {
+      color: #ff4a4a;
+      background: rgba(255, 74, 74, 0.1);
+      border: 1px solid rgba(255, 74, 74, 0.3);
+      padding: 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      margin-bottom: 20px;
+      display: none;
+      text-align: center;
+    }
+
+    .success-msg {
+      color: var(--rose-gold);
+      background: rgba(255, 77, 166, 0.15);
+      border: 1px solid rgba(255, 77, 166, 0.3);
+      padding: 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      margin-bottom: 20px;
+      display: none;
+      text-align: center;
+    }
+
+    .bubble-1 { top: 10%; left: 10%; }
+    .bubble-2 { bottom: 10%; right: 10%; }
+  </style>
+</head>
+<body>
+  <div class="glow-bubble bubble-1"></div>
+  <div class="glow-bubble glow-bubble-pink bubble-2"></div>
+
+  <div class="admin-login-container">
+    <div class="glass-panel admin-card">
+      <h2 class="admin-title">ADMIN PORTAL 🔑</h2>
+      <p class="admin-subtitle">Provide security credentials to access core systems</p>
+
+      <!-- ALERTS -->
+      <div id="errorBox" class="error-msg"></div>
+      <div id="successBox" class="success-msg"></div>
+
+      <form onsubmit="handleAdminLogin(event)">
+        <!-- USERNAME -->
+        <div class="input-group">
+          <label for="adminUsername">Admin Username</label>
+          <input type="text" id="adminUsername" class="cyber-input" placeholder="Enter admin username" required>
+        </div>
+
+        <!-- PASSWORD -->
+        <div class="input-group" style="margin-top: 20px;">
+          <label for="adminPassword">Admin Password</label>
+          <input type="password" id="adminPassword" class="cyber-input" placeholder="••••••••" required>
+        </div>
+
+        <!-- ACTION -->
+        <button type="submit" id="loginBtn" class="btn-cyber" style="margin-top: 30px; width: 100%;">
+          Authorize Access ⚡
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function clearAlerts() {
+      document.getElementById('errorBox').style.display = 'none';
+      document.getElementById('successBox').style.display = 'none';
+    }
+
+    function showAlert(type, msg) {
+      clearAlerts();
+      const box = type === 'error' ? document.getElementById('errorBox') : document.getElementById('successBox');
+      box.textContent = msg;
+      box.style.display = 'block';
+    }
+
+    function handleAdminLogin(event) {
+      event.preventDefault();
+      clearAlerts();
+
+      const username = document.getElementById('adminUsername').value.trim();
+      const password = document.getElementById('adminPassword').value;
+      const loginBtn = document.getElementById('loginBtn');
+
+      loginBtn.disabled = true;
+      loginBtn.innerHTML = "Authenticating...";
+
+      fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          showAlert('error', data.error);
+          loginBtn.disabled = false;
+          loginBtn.innerHTML = "Authorize Access ⚡";
+        } else {
+          localStorage.setItem('token', data.token);
+          showAlert('success', 'Authorization successful! Loading core console...');
+          setTimeout(() => {
+            window.location.href = data.redirect || '/admin/dashboard';
+          }, 1200);
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        showAlert('error', 'Security portal connection failed.');
+        loginBtn.disabled = false;
+        loginBtn.innerHTML = "Authorize Access ⚡";
+      });
+    }
+  </script>
+</body>
+</html>

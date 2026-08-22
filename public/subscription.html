@@ -482,33 +482,75 @@
       const errBox = document.getElementById('errorBox');
       errBox.style.display = 'none';
 
-      let targetLink = "";
-
-      // Determine final purchase link to open
-      if (selectedTopUps[999]) {
-        targetLink = TOPUP_999_LINK;
-      } else if (selectedTopUps[599]) {
-        targetLink = TOPUP_599_LINK;
-      } else if (selectedTopUps[299]) {
-        targetLink = TOPUP_299_LINK;
-      } else if (isSubscribedSelected) {
-        targetLink = (promoDiscount > 0) ? DISCOUNT_SUB_LINK : DEFAULT_SUB_LINK;
+      const token = localStorage.getItem("token");
+      if (!token) {
+        showErrorBox("Please create an account or sign in before continuing to payment.");
+        setTimeout(() => {
+          window.location.href = '/login.html?tab=signup&message=auth';
+        }, 2000);
+        return;
       }
 
-      if (!targetLink) {
+      let packageName = "";
+      if (selectedTopUps[999]) {
+        packageName = "1200 intimacy coins";
+      } else if (selectedTopUps[599]) {
+        packageName = "800 intimacy coins";
+      } else if (selectedTopUps[299]) {
+        packageName = "300 intimacy coins";
+      } else if (isSubscribedSelected) {
+        packageName = "Premium Dating Pass";
+      }
+
+      if (!packageName) {
         showErrorBox("Please select a package to checkout.");
         return;
       }
 
-      // Open UroPay external checkout tab
-      window.open(targetLink, '_blank');
+      const promoInput = document.getElementById('promoCode') || document.getElementById('couponInput');
+      const refCode = promoInput ? promoInput.value.trim() : null;
 
-      // Enter payment verification state
-      document.getElementById('visiblePayBtn').style.display = 'none';
-      document.getElementById('verificationContainer').style.display = 'block';
+      const visiblePayBtn = document.getElementById('visiblePayBtn');
+      visiblePayBtn.disabled = true;
+      visiblePayBtn.innerHTML = "Initializing Checkout...";
 
-      // Start Polling backend for status updates
-      startPaymentVerificationPolling();
+      fetch('/api/payment/create-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ packageName, refCode })
+      })
+      .then(res => {
+        if (!res.ok) {
+          return res.json().then(data => {
+            throw new Error(data.error || 'Failed to initialize payment.');
+          });
+        }
+        return res.json();
+      })
+      .then(data => {
+        if (data.checkoutUrl) {
+          // Open payment link
+          window.open(data.checkoutUrl, '_blank');
+          
+          // Enter payment verification state
+          document.getElementById('visiblePayBtn').style.display = 'none';
+          document.getElementById('verificationContainer').style.display = 'block';
+
+          // Start Polling backend for status updates
+          startPaymentVerificationPolling();
+        } else {
+          throw new Error('No checkout URL returned.');
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        showErrorBox(err.message || 'Payment initialization failed. Please try again.');
+        visiblePayBtn.disabled = false;
+        updateSummary();
+      });
     }
 
     function startPaymentVerificationPolling() {

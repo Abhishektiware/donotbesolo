@@ -172,7 +172,49 @@
         window.location.href = "/login.html?message=auth";
         return;
       }
+      // Fetch Account Dashboard statistics
+      fetch('/api/user/dashboard', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('Dashboard stats loading failed.');
+        return res.json();
+      })
+      .then(data => {
+        if (data.success) {
+          document.getElementById('dashUsername').textContent = data.username;
+          document.getElementById('dashEmail').textContent = data.email;
+          
+          const verifiedEl = document.getElementById('dashVerified');
+          if (data.emailVerified) {
+            verifiedEl.textContent = 'Verified ✅';
+            verifiedEl.style.color = '#00f0ff';
+          } else {
+            verifiedEl.textContent = 'Unverified ❌';
+            verifiedEl.style.color = '#ff4a4a';
+          }
 
+          document.getElementById('dashPlan').textContent = data.plan;
+
+          const subStatusEl = document.getElementById('dashSubStatus');
+          if (data.subscriptionStatus === 'Active') {
+            subStatusEl.textContent = 'Active ⚡';
+            subStatusEl.style.color = '#00f0ff';
+          } else {
+            subStatusEl.textContent = 'Inactive ❌';
+            subStatusEl.style.color = '#ff4a4a';
+          }
+
+          document.getElementById('dashStartDate').textContent = data.startDate;
+          document.getElementById('dashEndDate').textContent = data.endDate;
+        }
+      })
+      .catch(err => {
+        console.error('[Dashboard Load Error]:', err);
+      });
       // Pre-fill selections if user previously set preferences
       const activeCompStr = localStorage.getItem("activeCompanion");
       if (activeCompStr) {
@@ -304,6 +346,20 @@
     <div class="glass-panel pref-card">
       <h2 class="pref-title">Tune Your Perfect Match 💖</h2>
       <p class="pref-subtitle">Customize your companion's vibe and language details below.</p>
+
+      <!-- ACCOUNT DASHBOARD -->
+      <div id="accountDashboard" class="glass-panel" style="padding: 20px; margin-bottom: 30px; border: 1px solid rgba(0, 240, 255, 0.4); background: rgba(0, 240, 255, 0.03); border-radius: 16px;">
+        <div style="font-family: var(--font-body); font-size: 18px; font-weight: 700; color: var(--accent-pink); border-bottom: 1px solid rgba(255, 77, 166, 0.2); padding-bottom: 8px; margin-bottom: 12px;">👤 Account Dashboard</div>
+        <div style="font-size: 14px; color: var(--text-muted); line-height: 1.6; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px;">
+          <div><strong>Username:</strong> <span id="dashUsername" style="color: var(--text-main);">...</span></div>
+          <div><strong>Email:</strong> <span id="dashEmail" style="color: var(--text-main);">...</span></div>
+          <div><strong>Verification:</strong> <span id="dashVerified" style="font-weight: 600;">...</span></div>
+          <div><strong>Plan:</strong> <span id="dashPlan" style="color: var(--rose-gold);">...</span></div>
+          <div><strong>Sub Status:</strong> <span id="dashSubStatus" style="font-weight: 600;">...</span></div>
+          <div><strong>Start Date:</strong> <span id="dashStartDate" style="color: var(--text-main);">...</span></div>
+          <div><strong>Expiry Date:</strong> <span id="dashEndDate" style="color: var(--text-main);">...</span></div>
+        </div>
+      </div>
 
       <!-- Active Companion Preview Card -->
       <div id="companionPreviewCard" class="glass-panel" style="display: none; padding: 18px; margin-bottom: 30px; border: 1px solid rgba(255, 42, 117, 0.4); background: rgba(255, 42, 117, 0.05); border-radius: 16px; align-items: center; justify-content: center; gap: 12px; font-weight: 600; font-size: 16px; width: 100%;">
