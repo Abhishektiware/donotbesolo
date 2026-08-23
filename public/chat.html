@@ -902,8 +902,8 @@
       const file = event.target.files[0];
       if (!file) return;
 
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-      if (!allowedTypes.includes(file.type)) {
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type.toLowerCase())) {
         alert("Please choose a JPG, PNG, or WEBP image.");
         event.target.value = "";
         return;
@@ -916,7 +916,7 @@
       }
 
       selectedImageName = file.name;
-      selectedImageMimeType = file.type;
+      selectedImageMimeType = file.type || 'image/jpeg';
 
       const reader = new FileReader();
       reader.onload = function(e) {
@@ -926,6 +926,10 @@
         document.getElementById('imagePreviewName').textContent = file.name;
         document.getElementById('imagePreviewSize').textContent = (file.size / 1024).toFixed(1) + " KB";
         document.getElementById('imagePreviewContainer').style.display = 'flex';
+      };
+      reader.onerror = function(readErr) {
+        console.error('[FileReader Error]:', readErr);
+        alert("Could not read selected image file. Please try another image.");
       };
       reader.readAsDataURL(file);
     }
@@ -1569,7 +1573,7 @@
       const input = document.getElementById('chatInput');
       const text = input.value.trim();
       const imageToUpload = selectedImageBase64;
-      const mimeType = selectedImageMimeType;
+      const mimeType = selectedImageMimeType || 'image/jpeg';
 
       if (!text && !imageToUpload) return;
 
@@ -1593,14 +1597,14 @@
       if (sendBtn) sendBtn.disabled = true;
 
       const token = localStorage.getItem("token");
-      const startTime = Date.now();
+
+      // Show user chat bubble immediately with image preview and start typing indicator
+      addUserMessageWithTime(text, imageToUpload, new Date());
+      input.value = '';
+      removeSelectedImage();
       showTyping(true);
 
-      const performChatRequest = (imageUrl = null) => {
-        addUserMessageWithTime(text, imageUrl, new Date());
-        input.value = '';
-        removeSelectedImage();
-
+      const performChatRequest = (uploadedImageUrl = null) => {
         fetch('/api/chat', {
           method: 'POST',
           headers: {
@@ -1609,51 +1613,44 @@
           },
           body: JSON.stringify({
             message: text,
-            imageUrl: imageUrl
+            imageUrl: uploadedImageUrl
           })
         })
-          .then(res => {
+          .then(async res => {
             input.disabled = false;
             if (sendBtn) sendBtn.disabled = false;
-            return res.json();
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.error) {
+              throw new Error(data.error || `Server error (${res.status})`);
+            }
+            return data;
           })
           .then(data => {
-            if (data.error) {
-              showTyping(false);
-              showOverlayStatus('error', data.error);
-              addSystemWarningMessage("⚠️ Error: " + data.error);
-              // Revert optimistic update
-              if (!subActive) {
-                userCredits = previousCredits;
-                localStorage.setItem("credits", userCredits);
-                refreshWalletInfo();
-              }
-            } else {
-              localStorage.setItem("credits", data.credits);
-              localStorage.setItem("isSubscriptionActive", data.isSubscriptionActive);
-              refreshWalletInfo();
+            localStorage.setItem("credits", data.credits);
+            localStorage.setItem("isSubscriptionActive", data.isSubscriptionActive);
+            refreshWalletInfo();
 
-              const responseText = data.text || "";
-              const reactionText = data.reaction || "";
+            const responseText = data.text || "";
+            const reactionText = data.reaction || "";
 
-              if (reactionText) {
-                simulateHumanTyping(compName, reactionText);
-                const wordCount = reactionText.split(' ').length;
-                const reactionDelay = Math.min(1000 + wordCount * 150, 5000);
-                setTimeout(() => {
-                  simulateHumanTyping(compName, responseText, data.lockedMedia);
-                }, reactionDelay + 500);
-              } else {
+            if (reactionText) {
+              simulateHumanTyping(compName, reactionText);
+              const wordCount = reactionText.split(' ').length;
+              const reactionDelay = Math.min(1000 + wordCount * 150, 5000);
+              setTimeout(() => {
                 simulateHumanTyping(compName, responseText, data.lockedMedia);
-              }
+              }, reactionDelay + 500);
+            } else {
+              simulateHumanTyping(compName, responseText, data.lockedMedia);
             }
           })
           .catch(err => {
             input.disabled = false;
             if (sendBtn) sendBtn.disabled = false;
             showTyping(false);
-            showOverlayStatus('error', 'Connection lost. Please try again. ❤️');
-            addSystemWarningMessage("⚠️ Connection error or timeout. Please retry. ❤️");
+            console.error('[Chat API Error]:', err);
+            showOverlayStatus('error', err.message || 'Connection lost. Please try again. ❤️');
+            addSystemWarningMessage("⚠️ " + (err.message || "Connection error or timeout. Please retry. ❤️"));
             // Revert optimistic update
             if (!subActive) {
               userCredits = previousCredits;
@@ -1676,24 +1673,23 @@
             mimeType: mimeType
           })
         })
-          .then(res => {
-            if (!res.ok) {
-              throw new Error('Image upload failed.');
+          .then(async res => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.error) {
+              throw new Error(data.error || `Image upload failed (${res.status})`);
             }
-            return res.json();
+            return data;
           })
           .then(data => {
-            if (data.error) {
-              throw new Error(data.error);
-            }
             performChatRequest(data.imageUrl);
           })
           .catch(uploadErr => {
             input.disabled = false;
             if (sendBtn) sendBtn.disabled = false;
             showTyping(false);
-            showOverlayStatus('error', "Couldn't upload that image. Please try again.");
-            addSystemWarningMessage("⚠️ Image upload failed. Please try again.");
+            console.error('[Chat Image Upload Error]:', uploadErr);
+            showOverlayStatus('error', uploadErr.message || "Couldn't upload that image. Please try again.");
+            addSystemWarningMessage("⚠️ " + (uploadErr.message || "Image upload failed. Please try again."));
             // Revert optimistic update
             if (!subActive) {
               userCredits = previousCredits;

@@ -23,8 +23,8 @@ const otpService = require('./services/otp.service');
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '15mb' }));
-app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -68,7 +68,7 @@ app.get('/admin/logout', (req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR);
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 const CHAT_IMAGES_DIR = path.join(UPLOADS_DIR, 'chat-images');
 if (!fs.existsSync(CHAT_IMAGES_DIR)) {
@@ -76,17 +76,41 @@ if (!fs.existsSync(CHAT_IMAGES_DIR)) {
 }
 
 function validateImageBase64(imageBase64, mimeType) {
+  if (!imageBase64) {
+    return { valid: false, error: 'No image data provided.' };
+  }
+
+  let detectedMime = mimeType ? mimeType.toLowerCase() : null;
+  let base64Data = imageBase64;
+
+  if (imageBase64.includes(';base64,')) {
+    const parts = imageBase64.split(';base64,');
+    if (!detectedMime) {
+      const match = parts[0].match(/data:([^;]+)/);
+      if (match) detectedMime = match[1].toLowerCase();
+    }
+    base64Data = parts[1];
+  }
+
+  if (detectedMime === 'image/jpg') {
+    detectedMime = 'image/jpeg';
+  }
+
   const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
-  if (!allowedMimeTypes.includes(mimeType)) {
+  if (detectedMime && !allowedMimeTypes.includes(detectedMime)) {
     return { valid: false, error: 'Please choose a JPG, PNG, or WEBP image.' };
   }
 
-  let base64Data = imageBase64;
-  if (imageBase64.includes(';base64,')) {
-    base64Data = imageBase64.split(';base64,')[1];
+  let buffer;
+  try {
+    buffer = Buffer.from(base64Data, 'base64');
+  } catch (e) {
+    return { valid: false, error: 'Invalid base64 image data.' };
   }
 
-  const buffer = Buffer.from(base64Data, 'base64');
+  if (buffer.length === 0) {
+    return { valid: false, error: 'Image file is empty.' };
+  }
 
   if (buffer.length > 10 * 1024 * 1024) {
     return { valid: false, error: 'That image is too large. Please choose an image under 10 MB.' };
@@ -94,19 +118,21 @@ function validateImageBase64(imageBase64, mimeType) {
 
   const hex = buffer.toString('hex', 0, 4);
   let detectedType = null;
-  if (hex.startsWith('ffd8ff')) {
+  if (hex.startsWith('ffd8')) {
     detectedType = 'image/jpeg';
   } else if (hex.startsWith('89504e47')) {
     detectedType = 'image/png';
-  } else if (buffer.toString('utf8', 0, 4) === 'RIFF' && buffer.toString('utf8', 8, 12) === 'WEBP') {
+  } else if (buffer.length >= 12 && buffer.toString('utf8', 0, 4) === 'RIFF' && buffer.toString('utf8', 8, 12) === 'WEBP') {
     detectedType = 'image/webp';
   }
 
-  if (!detectedType || detectedType !== mimeType) {
-    return { valid: false, error: 'Please choose a JPG, PNG, or WEBP image.' };
+  if (!detectedType) {
+    detectedType = detectedMime || 'image/jpeg';
   }
 
-  return { valid: true, buffer, detectedType };
+  const ext = detectedType === 'image/png' ? 'png' : detectedType === 'image/webp' ? 'webp' : 'jpg';
+
+  return { valid: true, buffer, detectedType, ext };
 }
 
 // -------------------------------------------------------------
@@ -1413,8 +1439,8 @@ app.post('/api/chat/settings', authenticateToken, async (req, res) => {
 // Chat Images
 app.post('/api/chat/upload-image', authenticateToken, async (req, res) => {
   const { imageBase64, mimeType } = req.body;
-  if (!imageBase64 || !mimeType) {
-    return res.status(400).json({ error: 'Missing image payload parameters.' });
+  if (!imageBase64) {
+    return res.status(400).json({ error: 'Missing image payload data.' });
   }
 
   try {
@@ -1423,8 +1449,12 @@ app.post('/api/chat/upload-image', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: validation.error });
     }
 
+    if (!fs.existsSync(CHAT_IMAGES_DIR)) {
+      fs.mkdirSync(CHAT_IMAGES_DIR, { recursive: true });
+    }
+
     const uniqueId = crypto.randomBytes(16).toString('hex');
-    const ext = mimeType === 'image/jpeg' ? 'jpg' : mimeType === 'image/png' ? 'png' : 'webp';
+    const ext = validation.ext || 'jpg';
     const filename = `chat-img-${uniqueId}.${ext}`;
     const filePath = path.join(CHAT_IMAGES_DIR, filename);
 
@@ -1436,11 +1466,11 @@ app.post('/api/chat/upload-image', authenticateToken, async (req, res) => {
     });
   } catch (err) {
     console.error('[Chat Image Upload Error]:', err.message);
-    res.status(500).json({ error: "Couldn't upload that image. Please try again." });
+    res.status(500).json({ error: err.message || "Couldn't upload that image. Please try again." });
   }
 });
 
-app.get('/api/chat/images/:filename', authenticateToken, async (req, res) => {
+app.get('/api/chat/images/:filename', async (req, res) => {
   const { filename } = req.params;
   const safeFilename = path.basename(filename);
   const filePath = path.join(CHAT_IMAGES_DIR, safeFilename);

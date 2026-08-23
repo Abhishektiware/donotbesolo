@@ -219,13 +219,14 @@ async function handleChatMessage(userId, messageData) {
       }
     }
 
-    const togetherVisionModel = process.env.VISION_MODEL || 'meta-llama/Llama-3.2-11B-Vision-Instruct';
-    const modelToUse = base64Image ? togetherVisionModel : selectedModel;
+    const openrouterApiKey = (process.env.openrouter_ai_key || process.env.OPENROUTER_API_KEY || '').trim();
+    const visionModel = process.env.VISION_MODEL || 'google/gemini-2.5-flash';
+
     const apiMessages = [
       { role: 'system', content: sysPrompt }
     ];
 
-    // Load last 15 messages for Together AI history context
+    // Load last 15 messages for history context
     const recentMessages = conversation.history.slice(-15);
     recentMessages.forEach(msg => {
       let contentVal = msg.content;
@@ -239,14 +240,14 @@ async function handleChatMessage(userId, messageData) {
     });
 
     if (base64Image) {
-      const ext = safeFilename.split('.').pop();
+      const ext = safeFilename ? safeFilename.split('.').pop().toLowerCase() : 'jpg';
       const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
       apiMessages.push({
         role: 'user',
         content: [
           {
             type: "text",
-            text: message || "What do you think about this?"
+            text: message && message.trim() ? message.trim() : "What do you think about this photo I shared with you?"
           },
           {
             type: "image_url",
@@ -261,28 +262,116 @@ async function handleChatMessage(userId, messageData) {
     }
 
     console.log("Conversation length:", apiMessages.length);
-    console.log("Model to use:", modelToUse);
-    console.log("Starting Bluesminds request...");
+    console.log("Has Image Payload:", !!base64Image);
 
-    try {
-      const togetherRes = await axios.post('https://api.bluesminds.com/v1/chat/completions', {
-        model: 'meta/llama-3.1-8b-instruct',
-        messages: apiMessages,
-        max_tokens: 100,
-        temperature: 0.8
-      }, {
-        headers: {
-          'Authorization': `Bearer ${bluemindsApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 30000
-      });
+    // Call Multimodal Vision or Text Completion
+    if (base64Image) {
+      console.log("Executing Multimodal Vision AI Request...");
+      let visionSuccess = false;
 
-      companionResponse = togetherRes.data.choices[0].message.content.trim();
-    } catch (apiErr) {
-      console.error('[AI Provider Delayed - Falling back to local reply]:', apiErr.message);
-      const vibeList = MOCK_MESSAGES[activeVibe] || MOCK_MESSAGES.Flirty;
-      companionResponse = vibeList[Math.floor(Math.random() * vibeList.length)];
+      // 1. Try OpenRouter Vision (e.g. Gemini 2.5 Flash / Vision models)
+      if (openrouterApiKey && !openrouterApiKey.includes('placeholder')) {
+        try {
+          console.log(`Sending vision request to OpenRouter (${visionModel})...`);
+          const visionRes = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+            model: visionModel,
+            messages: apiMessages,
+            max_tokens: 150,
+            temperature: 0.8
+          }, {
+            headers: {
+              'Authorization': `Bearer ${openrouterApiKey}`,
+              'Content-Type': 'application/json'
+            },
+            timeout: 30000
+          });
+
+          if (visionRes.data && visionRes.data.choices && visionRes.data.choices[0]?.message?.content) {
+            companionResponse = visionRes.data.choices[0].message.content.trim();
+            visionSuccess = true;
+            console.log("✅ Vision AI Response received from OpenRouter.");
+          }
+        } catch (visionErr) {
+          console.error('[OpenRouter Vision Error]:', visionErr.response?.data || visionErr.message);
+        }
+      }
+
+      // 2. Fallback to Bluesminds API with multimodal format if OpenRouter didn't complete
+      if (!visionSuccess && isBluemindsKeyValid) {
+        try {
+          console.log("Attempting Bluesminds AI Vision request...");
+          const bmRes = await axios.post('https://api.bluesminds.com/v1/chat/completions', {
+            model: selectedModel,
+            messages: apiMessages,
+            max_tokens: 150,
+            temperature: 0.8
+          }, {
+            headers: {
+              'Authorization': `Bearer ${bluemindsApiKey}`,
+              'Content-Type': 'application/json'
+            },
+            timeout: 30000
+          });
+
+          if (bmRes.data && bmRes.data.choices && bmRes.data.choices[0]?.message?.content) {
+            companionResponse = bmRes.data.choices[0].message.content.trim();
+            visionSuccess = true;
+          }
+        } catch (bmErr) {
+          console.error('[Bluesminds Vision Request Error]:', bmErr.response?.data || bmErr.message);
+        }
+      }
+
+      if (!visionSuccess) {
+        console.warn('[Vision Fallback]: Using in-character fallback reply for image.');
+        const vibeList = MOCK_MESSAGES[activeVibe] || MOCK_MESSAGES.Flirty;
+        companionResponse = vibeList[Math.floor(Math.random() * vibeList.length)];
+      }
+    } else {
+      // Text-only standard chat request via Bluesminds AI API
+      console.log("Starting Bluesminds text request...");
+      try {
+        const togetherRes = await axios.post('https://api.bluesminds.com/v1/chat/completions', {
+          model: selectedModel,
+          messages: apiMessages,
+          max_tokens: 150,
+          temperature: 0.8
+        }, {
+          headers: {
+            'Authorization': `Bearer ${bluemindsApiKey}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 30000
+        });
+
+        companionResponse = togetherRes.data.choices[0].message.content.trim();
+      } catch (apiErr) {
+        console.error('[AI Provider Delayed - Falling back to OpenRouter/local reply]:', apiErr.message);
+        // Fallback to OpenRouter text if available
+        if (openrouterApiKey) {
+          try {
+            const orRes = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+              model: 'google/gemini-2.5-flash',
+              messages: apiMessages,
+              max_tokens: 150,
+              temperature: 0.8
+            }, {
+              headers: {
+                'Authorization': `Bearer ${openrouterApiKey}`,
+                'Content-Type': 'application/json'
+              },
+              timeout: 15000
+            });
+            companionResponse = orRes.data.choices[0].message.content.trim();
+          } catch (orErr) {
+            const vibeList = MOCK_MESSAGES[activeVibe] || MOCK_MESSAGES.Flirty;
+            companionResponse = vibeList[Math.floor(Math.random() * vibeList.length)];
+          }
+        } else {
+          const vibeList = MOCK_MESSAGES[activeVibe] || MOCK_MESSAGES.Flirty;
+          companionResponse = vibeList[Math.floor(Math.random() * vibeList.length)];
+        }
+      }
     }
 
     // Clean any leftover asterisk tags
